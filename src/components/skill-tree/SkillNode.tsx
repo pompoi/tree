@@ -1,7 +1,9 @@
 import type { SkillNode as SkillNodeType } from "@/types/graph";
-import type { Tier } from "@/types/skill";
+import type { Tier, Branch } from "@/types/skill";
+import { canUnlock } from "@/lib/graph-utils";
+import React from "react";
 
-const BRANCH_COLORS: Record<string, string> = {
+const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
   movement: "#06b6d4",
   defend: "#22c55e",
@@ -17,35 +19,134 @@ const NODE_RADII: Record<Tier, number> = {
 // Maximum characters to fit inside the circle before placing text below
 const MAX_INSIDE_CHARS = 6;
 
+type NodeVisualState = "base" | "unlocked" | "available" | "locked";
+
 interface SkillNodeProps {
   node: SkillNodeType;
+  unlockedSkillIds: Set<string>;
+  onHover: (
+    skill: SkillNodeType["skill"],
+    event: React.MouseEvent
+  ) => void;
+  onHoverEnd: () => void;
+  onClick: (skillId: string) => void;
 }
 
-export function SkillNode({ node }: SkillNodeProps) {
+function getNodeState(
+  node: SkillNodeType,
+  unlockedSet: Set<string>
+): NodeVisualState {
+  if (node.skill.isBase) return "base";
+  if (unlockedSet.has(node.skill.id)) return "unlocked";
+  if (canUnlock(node.skill.id, unlockedSet)) return "available";
+  return "locked";
+}
+
+export function SkillNode({
+  node,
+  unlockedSkillIds,
+  onHover,
+  onHoverEnd,
+  onClick,
+}: SkillNodeProps) {
   const { skill, x, y } = node;
   const tier = skill.tier as Tier;
   const r = NODE_RADII[tier];
-  const fillColor = BRANCH_COLORS[skill.branch] ?? "#888888";
-  const isBase = skill.isBase;
+  const branchColor = BRANCH_COLORS[skill.branch] ?? "#888888";
   const hasSecondary = Boolean(skill.secondaryBranch);
 
-  // Determine label placement: short names inside, longer names below
+  const state = getNodeState(node, unlockedSkillIds);
+
+  // Visual properties based on state
+  let fill: string;
+  let fillOpacity: number;
+  let stroke: string;
+  let strokeWidth: number;
+  let strokeDasharray: string | undefined;
+  let opacity: number;
+  let cursor: string;
+  let glowFilter: string | undefined;
+
+  switch (state) {
+    case "base":
+      fill = branchColor;
+      fillOpacity = 0.95;
+      stroke = "#ffffff";
+      strokeWidth = 2.5;
+      strokeDasharray = undefined;
+      opacity = 1;
+      cursor = "default";
+      glowFilter = undefined;
+      break;
+    case "unlocked":
+      fill = branchColor;
+      fillOpacity = 0.9;
+      stroke = "#ffffff";
+      strokeWidth = 2;
+      strokeDasharray = undefined;
+      opacity = 1;
+      cursor = "pointer";
+      glowFilter = "url(#glow)";
+      break;
+    case "available":
+      fill = "#1f2937";
+      fillOpacity = 0.7;
+      stroke = "#ffffff";
+      strokeWidth = 1.5;
+      strokeDasharray = "4 3";
+      opacity = 1;
+      cursor = "pointer";
+      glowFilter = undefined;
+      break;
+    case "locked":
+      fill = "#6b7280";
+      fillOpacity = 0.6;
+      stroke = "#6b7280";
+      strokeWidth = 1;
+      strokeDasharray = undefined;
+      opacity = 0.5;
+      cursor = "default";
+      glowFilter = undefined;
+      break;
+  }
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    onHover(skill, e);
+  };
+
+  const handleClick = () => {
+    if (state === "base") return;
+    onClick(skill.id);
+  };
+
+  // Determine label placement
   const isShortName = skill.name.length <= MAX_INSIDE_CHARS;
 
   return (
-    <g>
+    <g
+      opacity={opacity}
+      style={{ cursor }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={onHoverEnd}
+      onClick={handleClick}
+      aria-label={skill.name}
+      role="button"
+      tabIndex={state === "locked" || state === "base" ? -1 : 0}
+    >
       {/* Main node circle */}
       <circle
         cx={x}
         cy={y}
         r={r}
-        fill={fillColor}
-        fillOpacity={0.85}
-        stroke={isBase ? "#ffffff" : "#00000040"}
-        strokeWidth={isBase ? 2.5 : 1}
+        fill={fill}
+        fillOpacity={fillOpacity}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray={strokeDasharray}
+        filter={glowFilter}
       />
 
-      {/* Secondary branch indicator — small dot in corner */}
+      {/* Secondary branch indicator -- small dot in corner */}
       {hasSecondary && skill.secondaryBranch && (
         <circle
           cx={x + r * 0.6}
