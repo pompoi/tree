@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { SKILLS } from "@/data/skills";
-import { getSkillPosition } from "@/data/layout";
 import { canUnlock } from "@/lib/graph-utils";
-import { polarToCartesian } from "@/lib/polar";
+import { computeRadialLayout } from "@/lib/radial-layout";
 import { SkillEdge } from "./SkillEdge";
 import { SkillNode } from "./SkillNode";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -58,12 +57,20 @@ export function SkillTreeSVG() {
       }
     }
 
-    // Build node map with deterministic polar positions
+    // Radial tree layout — BFS from base skills
+    const positions = computeRadialLayout(visibleSkills);
+
     const nodeMap = new Map<string, SkillNodeType>();
     for (const skill of visibleSkills) {
-      const { angle, radius } = getSkillPosition(skill);
-      const { x, y } = polarToCartesian(angle, radius);
-      nodeMap.set(skill.id, { skill, angle, radius, x, y });
+      const pos = positions.get(skill.id);
+      if (!pos) continue;
+      nodeMap.set(skill.id, {
+        skill,
+        angle: pos.angle,
+        radius: pos.radius,
+        x: pos.x,
+        y: pos.y,
+      });
     }
 
     // Build edges (only between visible nodes)
