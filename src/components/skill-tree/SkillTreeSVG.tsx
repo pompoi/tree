@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
-import { SKILLS, SKILL_MAP, BASE_SKILL_IDS } from "@/data/skills";
+import { SKILLS } from "@/data/skills";
 import { getSkillPosition } from "@/data/layout";
 import { canUnlock } from "@/lib/graph-utils";
 import { polarToCartesian } from "@/lib/polar";
@@ -9,27 +9,14 @@ import { SkillEdge } from "./SkillEdge";
 import { SkillNode } from "./SkillNode";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useSkillTooltip } from "@/hooks/use-skill-tooltip";
-import { useForceLayout } from "@/hooks/use-force-layout";
 import { useBuildStore } from "@/stores/build-store";
-import type { Skill, Branch } from "@/types/skill";
-import type { SkillNode as SkillNodeType } from "@/types/graph";
-import type { ForceNode, ForceEdge } from "@/hooks/use-force-layout";
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const BASE_RADIUS = 100;
-const BRANCH_ANGLES: Record<Branch, number> = {
-  attack: 0,
-  movement: (2 * Math.PI) / 3,
-  defend: (4 * Math.PI) / 3,
-};
+import type { Skill } from "@/types/skill";
+import type { SkillNode as SkillNodeType, SkillEdge as SkillEdgeType } from "@/types/graph";
 
 // Default viewBox parameters
-const DEFAULT_VB = { x: -350, y: -350, w: 700, h: 700 };
+const DEFAULT_VB = { x: -450, y: -450, w: 900, h: 900 };
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 export function SkillTreeSVG() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -59,79 +46,38 @@ export function SkillTreeSVG() {
   const { tooltipSkill, tooltipPosition, showTooltip, hideTooltip } =
     useSkillTooltip();
 
-  // ─── Compute visible skills (unlocked + available) ─────────────────
-  const visibleSkills = useMemo(() => {
-    const visible: Skill[] = [];
+  // ─── Visible skills: unlocked + available ──────────────────────────
+  const { nodes, edges } = useMemo(() => {
+    const visibleSkills: Skill[] = [];
+    const visibleIds = new Set<string>();
+
     for (const skill of SKILLS) {
       if (unlockedSet.has(skill.id) || canUnlock(skill.id, unlockedSet)) {
-        visible.push(skill);
+        visibleSkills.push(skill);
+        visibleIds.add(skill.id);
       }
     }
-    return visible;
-  }, [unlockedSet]);
 
-  // ─── Pinned base positions ─────────────────────────────────────────
-  const pinnedPositions = useMemo(() => {
-    const m = new Map<string, { x: number; y: number }>();
-    for (const id of BASE_SKILL_IDS) {
-      const skill = SKILL_MAP.get(id);
-      if (!skill) continue;
-      const angle = BRANCH_ANGLES[skill.branch];
-      const pos = polarToCartesian(angle, BASE_RADIUS);
-      m.set(id, pos);
-    }
-    return m;
-  }, []);
-
-  // ─── Force layout inputs ──────────────────────────────────────────
-  const forceNodes = useMemo<ForceNode[]>(() => {
-    return visibleSkills.map((skill) => {
-      const pin = pinnedPositions.get(skill.id);
-      if (pin) {
-        return { id: skill.id, x0: pin.x, y0: pin.y, branch: skill.branch };
-      }
-      // Use polar layout as initial position hint
+    // Build node map with deterministic polar positions
+    const nodeMap = new Map<string, SkillNodeType>();
+    for (const skill of visibleSkills) {
       const { angle, radius } = getSkillPosition(skill);
-      const pos = polarToCartesian(angle, radius);
-      return { id: skill.id, x0: pos.x, y0: pos.y, branch: skill.branch };
-    });
-  }, [visibleSkills, pinnedPositions]);
+      const { x, y } = polarToCartesian(angle, radius);
+      nodeMap.set(skill.id, { skill, angle, radius, x, y });
+    }
 
-  const visibleIds = useMemo(
-    () => new Set(visibleSkills.map((s) => s.id)),
-    [visibleSkills]
-  );
-
-  const forceEdges = useMemo<ForceEdge[]>(() => {
-    const edges: ForceEdge[] = [];
+    // Build edges (only between visible nodes)
+    const edgeList: SkillEdgeType[] = [];
     for (const skill of visibleSkills) {
       for (const prereqId of skill.prerequisites) {
         if (visibleIds.has(prereqId)) {
-          edges.push({ from: prereqId, to: skill.id });
+          edgeList.push({ from: prereqId, to: skill.id });
         }
       }
     }
-    return edges;
-  }, [visibleSkills, visibleIds]);
 
-  // ─── Run force simulation ──────────────────────────────────────────
-  const positions = useForceLayout(forceNodes, forceEdges, pinnedPositions);
-
-  // ─── Build SkillNode objects from force positions ──────────────────
-  const nodeMap = useMemo(() => {
-    const m = new Map<string, SkillNodeType>();
-    for (const skill of visibleSkills) {
-      const pos = positions.get(skill.id) ?? { x: 0, y: 0 };
-      m.set(skill.id, {
-        skill,
-        angle: 0, // not used in force layout
-        radius: 0,
-        x: pos.x,
-        y: pos.y,
-      });
-    }
-    return m;
-  }, [visibleSkills, positions]);
+    return { nodes: nodeMap, edges: edgeList };
+  }, [unlockedSet]);
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleNodeHover = useCallback(
@@ -246,7 +192,6 @@ export function SkillTreeSVG() {
         }}
         onDoubleClick={handleDoubleClick}
       >
-        {/* SVG filter definitions */}
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur" />
@@ -259,9 +204,9 @@ export function SkillTreeSVG() {
 
         {/* Prerequisite edges */}
         <g>
-          {forceEdges.map((edge) => {
-            const fromNode = nodeMap.get(edge.from);
-            const toNode = nodeMap.get(edge.to);
+          {edges.map((edge) => {
+            const fromNode = nodes.get(edge.from);
+            const toNode = nodes.get(edge.to);
             if (!fromNode || !toNode) return null;
             return (
               <SkillEdge
@@ -274,9 +219,9 @@ export function SkillTreeSVG() {
           })}
         </g>
 
-        {/* Skill nodes (rendered on top) */}
+        {/* Skill nodes */}
         <g>
-          {Array.from(nodeMap.values()).map((node) => (
+          {Array.from(nodes.values()).map((node) => (
             <SkillNode
               key={node.skill.id}
               node={node}
