@@ -7,7 +7,7 @@ const BRANCH_COLORS: Record<Branch, string> = {
   defend: "#22c55e",
 };
 
-type EdgeState = "active" | "available" | "inactive";
+type EdgeState = "active" | "available";
 
 interface SkillEdgeProps {
   fromNode: SkillNode;
@@ -24,8 +24,7 @@ function getEdgeState(
   const toUnlocked = unlockedSet.has(toId);
 
   if (fromUnlocked && toUnlocked) return "active";
-  if (fromUnlocked && !toUnlocked) return "available";
-  return "inactive";
+  return "available";
 }
 
 export function SkillEdge({ fromNode, toNode, unlockedSkillIds }: SkillEdgeProps) {
@@ -76,11 +75,6 @@ export function SkillEdge({ fromNode, toNode, unlockedSkillIds }: SkillEdgeProps
       strokeOpacity = 0.4;
       strokeDasharray = "6 4";
       strokeWidth = 1.5;
-      break;
-    case "inactive":
-      strokeOpacity = 0.15;
-      strokeDasharray = undefined;
-      strokeWidth = 1;
       break;
   }
 

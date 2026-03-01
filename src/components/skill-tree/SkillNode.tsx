@@ -19,7 +19,7 @@ const NODE_RADII: Record<Tier, number> = {
 // Maximum characters to fit inside the circle before placing text below
 const MAX_INSIDE_CHARS = 6;
 
-type NodeVisualState = "base" | "unlocked" | "available" | "locked";
+type NodeVisualState = "base" | "unlocked" | "available";
 
 interface SkillNodeProps {
   node: SkillNodeType;
@@ -30,7 +30,6 @@ interface SkillNodeProps {
   ) => void;
   onHoverEnd: () => void;
   onClick: (skillId: string) => void;
-  highlighted?: boolean;
 }
 
 function getNodeState(
@@ -39,8 +38,7 @@ function getNodeState(
 ): NodeVisualState {
   if (node.skill.isBase) return "base";
   if (unlockedSet.has(node.skill.id)) return "unlocked";
-  if (canUnlock(node.skill.id, unlockedSet)) return "available";
-  return "locked";
+  return "available";
 }
 
 export function SkillNode({
@@ -49,7 +47,6 @@ export function SkillNode({
   onHover,
   onHoverEnd,
   onClick,
-  highlighted = false,
 }: SkillNodeProps) {
   const { skill, x, y } = node;
   const tier = skill.tier as Tier;
@@ -100,22 +97,6 @@ export function SkillNode({
       cursor = "pointer";
       glowFilter = undefined;
       break;
-    case "locked":
-      fill = "#6b7280";
-      fillOpacity = 0.6;
-      stroke = "#6b7280";
-      strokeWidth = 1;
-      strokeDasharray = undefined;
-      opacity = 0.5;
-      cursor = "default";
-      glowFilter = undefined;
-      break;
-  }
-
-  // Brighten nodes when their branch is hovered
-  if (highlighted && state === "locked") {
-    opacity = 0.7;
-    fillOpacity = 0.75;
   }
 
   const handleMouseEnter = (e: React.MouseEvent) => {
@@ -139,7 +120,7 @@ export function SkillNode({
       onClick={handleClick}
       aria-label={skill.name}
       role="button"
-      tabIndex={state === "locked" || state === "base" ? -1 : 0}
+      tabIndex={state === "base" ? -1 : 0}
     >
       {/* Main node circle */}
       <circle

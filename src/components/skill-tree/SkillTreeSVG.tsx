@@ -1,32 +1,40 @@
 "use client";
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
-import { buildSkillGraph } from "@/data/graph";
-import { TIER_RADII } from "@/data/layout";
-import { TierRing } from "./TierRing";
-import { BranchSlice } from "./BranchSlice";
+import { SKILLS, SKILL_MAP, BASE_SKILL_IDS } from "@/data/skills";
+import { getSkillPosition } from "@/data/layout";
+import { canUnlock } from "@/lib/graph-utils";
+import { polarToCartesian } from "@/lib/polar";
 import { SkillEdge } from "./SkillEdge";
 import { SkillNode } from "./SkillNode";
-import { DirectionLine } from "./DirectionLine";
-import { TreeLegend } from "./TreeLegend";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useSkillTooltip } from "@/hooks/use-skill-tooltip";
-import { useMouseAngle } from "@/hooks/use-mouse-angle";
+import { useForceLayout } from "@/hooks/use-force-layout";
 import { useBuildStore } from "@/stores/build-store";
 import type { Skill, Branch } from "@/types/skill";
+import type { SkillNode as SkillNodeType } from "@/types/graph";
+import type { ForceNode, ForceEdge } from "@/hooks/use-force-layout";
 
-const TIER_RING_RADII = Object.values(TIER_RADII) as number[];
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const BASE_RADIUS = 100;
+const BRANCH_ANGLES: Record<Branch, number> = {
+  attack: 0,
+  movement: (2 * Math.PI) / 3,
+  defend: (4 * Math.PI) / 3,
+};
 
 // Default viewBox parameters
-const DEFAULT_VB = { x: -450, y: -450, w: 900, h: 900 };
+const DEFAULT_VB = { x: -350, y: -350, w: 700, h: 700 };
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
 
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export function SkillTreeSVG() {
-  const { nodes, edges } = useMemo(() => buildSkillGraph(), []);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // ─── Pan & Zoom state ────────────────────────────────────────────────
+  // ─── Pan & Zoom state ──────────────────────────────────────────────
   const [viewBox, setViewBox] = useState(DEFAULT_VB);
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -51,14 +59,81 @@ export function SkillTreeSVG() {
   const { tooltipSkill, tooltipPosition, showTooltip, hideTooltip } =
     useSkillTooltip();
 
-  const {
-    lineEndX,
-    lineEndY,
-    radius: mouseRadius,
-    nearestBranch,
-    handleMouseMove,
-  } = useMouseAngle();
+  // ─── Compute visible skills (unlocked + available) ─────────────────
+  const visibleSkills = useMemo(() => {
+    const visible: Skill[] = [];
+    for (const skill of SKILLS) {
+      if (unlockedSet.has(skill.id) || canUnlock(skill.id, unlockedSet)) {
+        visible.push(skill);
+      }
+    }
+    return visible;
+  }, [unlockedSet]);
 
+  // ─── Pinned base positions ─────────────────────────────────────────
+  const pinnedPositions = useMemo(() => {
+    const m = new Map<string, { x: number; y: number }>();
+    for (const id of BASE_SKILL_IDS) {
+      const skill = SKILL_MAP.get(id);
+      if (!skill) continue;
+      const angle = BRANCH_ANGLES[skill.branch];
+      const pos = polarToCartesian(angle, BASE_RADIUS);
+      m.set(id, pos);
+    }
+    return m;
+  }, []);
+
+  // ─── Force layout inputs ──────────────────────────────────────────
+  const forceNodes = useMemo<ForceNode[]>(() => {
+    return visibleSkills.map((skill) => {
+      const pin = pinnedPositions.get(skill.id);
+      if (pin) {
+        return { id: skill.id, x0: pin.x, y0: pin.y, branch: skill.branch };
+      }
+      // Use polar layout as initial position hint
+      const { angle, radius } = getSkillPosition(skill);
+      const pos = polarToCartesian(angle, radius);
+      return { id: skill.id, x0: pos.x, y0: pos.y, branch: skill.branch };
+    });
+  }, [visibleSkills, pinnedPositions]);
+
+  const visibleIds = useMemo(
+    () => new Set(visibleSkills.map((s) => s.id)),
+    [visibleSkills]
+  );
+
+  const forceEdges = useMemo<ForceEdge[]>(() => {
+    const edges: ForceEdge[] = [];
+    for (const skill of visibleSkills) {
+      for (const prereqId of skill.prerequisites) {
+        if (visibleIds.has(prereqId)) {
+          edges.push({ from: prereqId, to: skill.id });
+        }
+      }
+    }
+    return edges;
+  }, [visibleSkills, visibleIds]);
+
+  // ─── Run force simulation ──────────────────────────────────────────
+  const positions = useForceLayout(forceNodes, forceEdges, pinnedPositions);
+
+  // ─── Build SkillNode objects from force positions ──────────────────
+  const nodeMap = useMemo(() => {
+    const m = new Map<string, SkillNodeType>();
+    for (const skill of visibleSkills) {
+      const pos = positions.get(skill.id) ?? { x: 0, y: 0 };
+      m.set(skill.id, {
+        skill,
+        angle: 0, // not used in force layout
+        radius: 0,
+        x: pos.x,
+        y: pos.y,
+      });
+    }
+    return m;
+  }, [visibleSkills, positions]);
+
+  // ─── Handlers ──────────────────────────────────────────────────────
   const handleNodeHover = useCallback(
     (skill: Skill, event: React.MouseEvent) => {
       showTooltip(skill, event.clientX, event.clientY);
@@ -77,7 +152,7 @@ export function SkillTreeSVG() {
     [unlockedSet, unlockSkill, lockSkill]
   );
 
-  // ─── Wheel zoom ──────────────────────────────────────────────────────
+  // ─── Wheel zoom ────────────────────────────────────────────────────
   const handleWheel = useCallback(
     (e: React.WheelEvent<SVGSVGElement>) => {
       e.preventDefault();
@@ -87,13 +162,11 @@ export function SkillTreeSVG() {
         const newW = prev.w * scaleFactor;
         const newH = prev.h * scaleFactor;
 
-        // Enforce scale limits based on original viewBox size
         const currentScale = DEFAULT_VB.w / newW;
         if (currentScale < MIN_SCALE || currentScale > MAX_SCALE) {
           return prev;
         }
 
-        // Zoom toward center of viewport
         const dw = newW - prev.w;
         const dh = newH - prev.h;
 
@@ -108,10 +181,9 @@ export function SkillTreeSVG() {
     []
   );
 
-  // ─── Pan (mouse drag) ────────────────────────────────────────────────
+  // ─── Pan (mouse drag) ──────────────────────────────────────────────
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      // Only start pan on middle click or when holding shift
       if (e.button === 1 || e.shiftKey) {
         e.preventDefault();
         setIsPanning(true);
@@ -122,10 +194,8 @@ export function SkillTreeSVG() {
     [viewBox]
   );
 
-  const handleMouseMovePan = useCallback(
+  const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      handleMouseMove(e);
-
       if (!isPanning) return;
 
       const svg = svgRef.current;
@@ -134,7 +204,6 @@ export function SkillTreeSVG() {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
 
-      // Convert screen pixels to SVG units
       const rect = svg.getBoundingClientRect();
       const scaleX = viewBoxStartRef.current.w / rect.width;
       const scaleY = viewBoxStartRef.current.h / rect.height;
@@ -145,20 +214,16 @@ export function SkillTreeSVG() {
         y: viewBoxStartRef.current.y - dy * scaleY,
       });
     },
-    [isPanning, handleMouseMove]
+    [isPanning]
   );
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
   }, []);
 
-  // ─── Double-click reset ──────────────────────────────────────────────
   const handleDoubleClick = useCallback(() => {
     setViewBox(DEFAULT_VB);
   }, []);
-
-  // Show direction line only when mouse is within a reasonable radius
-  const showDirectionLine = mouseRadius > 10;
 
   return (
     <div className="w-full flex items-center justify-center">
@@ -173,7 +238,7 @@ export function SkillTreeSVG() {
         xmlns="http://www.w3.org/2000/svg"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMovePan}
+        onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => {
           handleMouseUp();
@@ -192,28 +257,11 @@ export function SkillTreeSVG() {
           </filter>
         </defs>
 
-        {/* Layer 0: Direction line */}
-        <DirectionLine
-          endX={lineEndX}
-          endY={lineEndY}
-          visible={showDirectionLine}
-        />
-
-        {/* Layer 1: Tier rings */}
+        {/* Prerequisite edges */}
         <g>
-          {TIER_RING_RADII.map((radius) => (
-            <TierRing key={radius} radius={radius} />
-          ))}
-        </g>
-
-        {/* Layer 2: Branch slice dividers and labels */}
-        <BranchSlice />
-
-        {/* Layer 3: Prerequisite edges */}
-        <g>
-          {edges.map((edge) => {
-            const fromNode = nodes.get(edge.from);
-            const toNode = nodes.get(edge.to);
+          {forceEdges.map((edge) => {
+            const fromNode = nodeMap.get(edge.from);
+            const toNode = nodeMap.get(edge.to);
             if (!fromNode || !toNode) return null;
             return (
               <SkillEdge
@@ -226,29 +274,19 @@ export function SkillTreeSVG() {
           })}
         </g>
 
-        {/* Layer 4: Skill nodes (rendered on top) */}
+        {/* Skill nodes (rendered on top) */}
         <g>
-          {Array.from(nodes.values()).map((node) => {
-            // Brighten nodes in the hovered branch
-            const isHighlightedBranch =
-              nearestBranch !== null && node.skill.branch === nearestBranch;
-
-            return (
-              <SkillNode
-                key={node.skill.id}
-                node={node}
-                unlockedSkillIds={unlockedSet}
-                onHover={handleNodeHover}
-                onHoverEnd={hideTooltip}
-                onClick={handleNodeClick}
-                highlighted={isHighlightedBranch}
-              />
-            );
-          })}
+          {Array.from(nodeMap.values()).map((node) => (
+            <SkillNode
+              key={node.skill.id}
+              node={node}
+              unlockedSkillIds={unlockedSet}
+              onHover={handleNodeHover}
+              onHoverEnd={hideTooltip}
+              onClick={handleNodeClick}
+            />
+          ))}
         </g>
-
-        {/* Layer 5: Legend */}
-        <TreeLegend />
       </svg>
 
       <Tooltip skill={tooltipSkill} position={tooltipPosition} />
