@@ -91,6 +91,41 @@ function getEdgeIndex(skill: Skill): number {
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
+/**
+ * Project a node's prerequisite centroid onto an edge direction.
+ * Returns a scalar: lower = closer to v1, higher = closer to v2.
+ */
+function prereqProjection(
+  skillId: string,
+  skillById: Map<string, Skill>,
+  placed: Map<string, HexPosition>,
+  edgeDx: number,
+  edgeDy: number
+): number {
+  const skill = skillById.get(skillId);
+  if (!skill) return 0;
+
+  let cx = 0;
+  let cy = 0;
+  let count = 0;
+
+  for (const pid of skill.prerequisites) {
+    const pos = placed.get(pid);
+    if (pos) {
+      cx += pos.x;
+      cy += pos.y;
+      count++;
+    }
+  }
+
+  if (count === 0) return 0;
+  cx /= count;
+  cy /= count;
+
+  // Dot product of centroid with edge direction
+  return cx * edgeDx + cy * edgeDy;
+}
+
 export interface HexPosition {
   x: number;
   y: number;
@@ -151,13 +186,16 @@ export function computeHexLayout(
     groups.get(key)!.push(skill.id);
   }
 
-  // Sort each group deterministically by skill id
-  for (const ids of groups.values()) {
-    ids.sort();
-  }
+  // ─── 3. Place nodes on hex edges (process depths in order) ────────
+  const skillById = new Map(visibleSkills.map((s) => [s.id, s]));
+  const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+    const da = parseInt(a.split(":")[0]);
+    const db = parseInt(b.split(":")[0]);
+    return da - db;
+  });
 
-  // ─── 3. Place nodes on hex edges ─────────────────────────────────
-  for (const [key, ids] of groups) {
+  for (const key of sortedKeys) {
+    const ids = groups.get(key)!;
     const [depthStr, edgeStr] = key.split(":");
     const depth = parseInt(depthStr);
     const edgeIdx = parseInt(edgeStr);
@@ -167,11 +205,22 @@ export function computeHexLayout(
     const v1 = verts[edgeIdx];
     const v2 = verts[(edgeIdx + 1) % 6];
 
+    // Sort by prerequisite centroid projected onto the edge direction.
+    // This keeps children near their parents, avoiding edge crossings.
+    const edgeDx = v2.x - v1.x;
+    const edgeDy = v2.y - v1.y;
+
+    ids.sort((a, b) => {
+      const projA = prereqProjection(a, skillById, result, edgeDx, edgeDy);
+      const projB = prereqProjection(b, skillById, result, edgeDx, edgeDy);
+      if (projA !== projB) return projA - projB;
+      return a.localeCompare(b); // stable tiebreak
+    });
+
     const count = ids.length;
     const usableRange = 1 - 2 * EDGE_PADDING;
 
     for (let i = 0; i < count; i++) {
-      // Spread evenly within the padded edge segment
       const t =
         count === 1
           ? 0.5
