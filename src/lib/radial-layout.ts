@@ -1,61 +1,116 @@
 /**
- * Radial tree layout — BFS from base skills.
+ * Hex layout — nested hexagons, BFS from base skills.
  *
- * 1. Base skills pinned at their branch angles on an inner ring.
- * 2. BFS computes depth (distance from nearest base).
- * 3. Each depth ring is placed at BASE_RADIUS + depth * LAYER_SPACING.
- * 4. A node's angle = average of its prerequisite angles.
- * 5. Siblings at the same depth are spread to avoid overlap.
+ * Flat-top hex: ATK edge at top (0°), MOV at 120°, DEF at 240°.
+ * Border edges between branches at 60°, 180°, 300°.
+ *
+ * 1. BFS from base skills computes depth.
+ * 2. Each depth maps to a hex ring at increasing radius.
+ * 3. Each skill maps to a hex edge (branch → side, hybrid → border).
+ * 4. Siblings on the same (depth, edge) spread evenly along the edge.
  *
  * Fully deterministic: same visible set → same positions.
  */
 
 import type { Skill, Branch } from "@/types/skill";
-import { SKILL_MAP } from "@/data/skills";
-import { normalizeAngle, averageAngles } from "@/lib/polar";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const BASE_RADIUS = 80;
-const LAYER_SPACING = 100;
+const LAYER_SPACING = 90;
 
-/** Minimum arc distance (px) between node centers on the same ring. */
-const MIN_NODE_GAP = 45;
+const EDGE_PADDING = 0.15; // fraction of edge to pad from each vertex
 
-const BRANCH_ANGLES: Record<Branch, number> = {
+/** 6 hex vertex angles (degrees, 0°=top, clockwise) for flat-top hex. */
+const HEX_VERTEX_DEGS = [330, 30, 90, 150, 210, 270];
+
+/** Convert our convention (0°=top, CW) to radians for trig. */
+function degToRad(deg: number): number {
+  return ((deg - 90) * Math.PI) / 180;
+}
+
+/** Get (x, y) for a hex vertex at given angle and radius. */
+function hexVertex(vertexDeg: number, radius: number): { x: number; y: number } {
+  const rad = degToRad(vertexDeg);
+  return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
+}
+
+/** Get all 6 vertices of a hex at given radius. */
+export function hexVertices(radius: number): { x: number; y: number }[] {
+  return HEX_VERTEX_DEGS.map((deg) => hexVertex(deg, radius));
+}
+
+/** Lerp between two points. */
+function lerp(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  t: number
+): { x: number; y: number } {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// ─── Edge Assignment ─────────────────────────────────────────────────────────
+
+/**
+ * 6 edges indexed 0-5:
+ *   0: ATK (top)       — vertices 0→1 (330°→30°)
+ *   1: ATK–MOV border  — vertices 1→2 (30°→90°)
+ *   2: MOV             — vertices 2→3 (90°→150°)
+ *   3: MOV–DEF border  — vertices 3→4 (150°→210°)
+ *   4: DEF             — vertices 4→5 (210°→270°)
+ *   5: DEF–ATK border  — vertices 5→0 (270°→330°)
+ */
+
+const BRANCH_EDGE: Record<Branch, number> = {
   attack: 0,
-  movement: (2 * Math.PI) / 3,
-  defend: (4 * Math.PI) / 3,
+  movement: 2,
+  defend: 4,
 };
+
+/** Map a pair of branches to their border edge. */
+function borderEdge(a: Branch, b: Branch): number {
+  const pair = [a, b].sort().join(",");
+  switch (pair) {
+    case "attack,movement":
+      return 1;
+    case "defend,movement":
+      return 3;
+    case "attack,defend":
+      return 5;
+    default:
+      return 0;
+  }
+}
+
+function getEdgeIndex(skill: Skill): number {
+  if (skill.secondaryBranch) {
+    return borderEdge(skill.branch, skill.secondaryBranch);
+  }
+  return BRANCH_EDGE[skill.branch];
+}
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
-export interface RadialPosition {
-  angle: number;
-  radius: number;
+export interface HexPosition {
   x: number;
   y: number;
+  depth: number;
 }
 
-export function computeRadialLayout(
+export function computeHexLayout(
   visibleSkills: Skill[]
-): Map<string, RadialPosition> {
-  const result = new Map<string, RadialPosition>();
-  const angles = new Map<string, number>();
+): Map<string, HexPosition> {
+  const result = new Map<string, HexPosition>();
   const depths = new Map<string, number>();
   const visibleIds = new Set(visibleSkills.map((s) => s.id));
 
-  // ─── 1. Place base skills ──────────────────────────────────────────
+  // ─── 1. BFS to assign depth ──────────────────────────────────────
   for (const skill of visibleSkills) {
     if (skill.isBase) {
-      const angle = BRANCH_ANGLES[skill.branch];
-      angles.set(skill.id, angle);
       depths.set(skill.id, 0);
     }
   }
 
-  // ─── 2. BFS to assign depth + base angle ───────────────────────────
-  // Process nodes in topological order (all prereqs placed before children).
   const placed = new Set<string>(
     visibleSkills.filter((s) => s.isBase).map((s) => s.id)
   );
@@ -66,14 +121,12 @@ export function computeRadialLayout(
     for (const skill of visibleSkills) {
       if (placed.has(skill.id)) continue;
 
-      // Check if all visible prerequisites are placed
       const visiblePrereqs = skill.prerequisites.filter((id) =>
         visibleIds.has(id)
       );
       if (visiblePrereqs.length === 0) continue;
       if (!visiblePrereqs.every((id) => placed.has(id))) continue;
 
-      // Depth = max prereq depth + 1
       let maxDepth = 0;
       for (const pid of visiblePrereqs) {
         const d = depths.get(pid) ?? 0;
@@ -81,90 +134,64 @@ export function computeRadialLayout(
       }
       depths.set(skill.id, maxDepth + 1);
 
-      // Angle = average of prerequisite angles
-      const prereqAngles = visiblePrereqs.map((id) => angles.get(id) ?? 0);
-      let angle: number;
-      if (prereqAngles.length === 1) {
-        angle = prereqAngles[0];
-      } else {
-        // Iteratively average to handle wraparound
-        angle = prereqAngles[0];
-        for (let i = 1; i < prereqAngles.length; i++) {
-          angle = averageAngles(angle, prereqAngles[i]);
-        }
-      }
-      angles.set(skill.id, angle);
-
       placed.add(skill.id);
       changed = true;
     }
   }
 
-  // ─── 3. Group by depth and spread siblings ─────────────────────────
-  const byDepth = new Map<number, string[]>();
+  // ─── 2. Group by (depth, edge) ───────────────────────────────────
+  const groups = new Map<string, string[]>(); // key: "depth:edge"
+
   for (const skill of visibleSkills) {
-    const d = depths.get(skill.id);
-    if (d === undefined) continue;
-    if (!byDepth.has(d)) byDepth.set(d, []);
-    byDepth.get(d)!.push(skill.id);
+    const depth = depths.get(skill.id);
+    if (depth === undefined) continue;
+    const edge = getEdgeIndex(skill);
+    const key = `${depth}:${edge}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(skill.id);
   }
 
-  for (const [depth, ids] of byDepth) {
+  // Sort each group deterministically by skill id
+  for (const ids of groups.values()) {
+    ids.sort();
+  }
+
+  // ─── 3. Place nodes on hex edges ─────────────────────────────────
+  for (const [key, ids] of groups) {
+    const [depthStr, edgeStr] = key.split(":");
+    const depth = parseInt(depthStr);
+    const edgeIdx = parseInt(edgeStr);
     const radius = BASE_RADIUS + depth * LAYER_SPACING;
 
-    if (ids.length === 1) {
-      // Single node at this depth — use its computed angle as-is
-      const id = ids[0];
-      const angle = angles.get(id) ?? 0;
-      result.set(id, {
-        angle,
-        radius,
-        x: Math.sin(angle) * radius,
-        y: -Math.cos(angle) * radius,
-      });
-      continue;
-    }
+    const verts = hexVertices(radius);
+    const v1 = verts[edgeIdx];
+    const v2 = verts[(edgeIdx + 1) % 6];
 
-    // Sort by angle for deterministic ordering
-    ids.sort((a, b) => (angles.get(a) ?? 0) - (angles.get(b) ?? 0));
+    const count = ids.length;
+    const usableRange = 1 - 2 * EDGE_PADDING;
 
-    // Compute minimum angular separation at this radius
-    const minSep = MIN_NODE_GAP / radius;
+    for (let i = 0; i < count; i++) {
+      // Spread evenly within the padded edge segment
+      const t =
+        count === 1
+          ? 0.5
+          : EDGE_PADDING + (usableRange * i) / (count - 1);
 
-    // Spread nodes: if two nodes are too close, push them apart
-    const finalAngles = ids.map((id) => angles.get(id) ?? 0);
-
-    // Multiple passes to resolve overlaps
-    for (let pass = 0; pass < 5; pass++) {
-      for (let i = 0; i < finalAngles.length; i++) {
-        for (let j = i + 1; j < finalAngles.length; j++) {
-          let diff = normalizeAngle(finalAngles[j] - finalAngles[i]);
-          if (diff > Math.PI) diff -= 2 * Math.PI;
-
-          const absDiff = Math.abs(diff);
-          if (absDiff < minSep) {
-            const push = (minSep - absDiff) / 2;
-            const sign = diff >= 0 ? 1 : -1;
-            finalAngles[i] = normalizeAngle(finalAngles[i] - sign * push);
-            finalAngles[j] = normalizeAngle(finalAngles[j] + sign * push);
-          }
-        }
-      }
-    }
-
-    // Write final positions
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const angle = finalAngles[i];
-      angles.set(id, angle); // Update for downstream children
-      result.set(id, {
-        angle,
-        radius,
-        x: Math.sin(angle) * radius,
-        y: -Math.cos(angle) * radius,
-      });
+      const pos = lerp(v1, v2, t);
+      result.set(ids[i], { x: pos.x, y: pos.y, depth });
     }
   }
 
   return result;
+}
+
+/** Get hex radii for all depths that have visible nodes. */
+export function getHexRadii(positions: Map<string, HexPosition>): number[] {
+  const depths = new Set<number>();
+  for (const pos of positions.values()) {
+    depths.add(pos.depth);
+  }
+  return Array.from(depths)
+    .sort((a, b) => a - b)
+    .map((d) => BASE_RADIUS + d * LAYER_SPACING);
 }
