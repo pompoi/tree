@@ -30,6 +30,7 @@ interface SkillNodeProps {
   ) => void;
   onHoverEnd: () => void;
   onClick: (skillId: string) => void;
+  highlighted?: boolean;
 }
 
 function getNodeState(
@@ -48,6 +49,7 @@ export function SkillNode({
   onHover,
   onHoverEnd,
   onClick,
+  highlighted = false,
 }: SkillNodeProps) {
   const { skill, x, y } = node;
   const tier = skill.tier as Tier;
@@ -108,6 +110,12 @@ export function SkillNode({
       cursor = "default";
       glowFilter = undefined;
       break;
+  }
+
+  // Brighten nodes when their branch is hovered
+  if (highlighted && state === "locked") {
+    opacity = 0.7;
+    fillOpacity = 0.75;
   }
 
   const handleMouseEnter = (e: React.MouseEvent) => {
