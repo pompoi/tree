@@ -19,7 +19,7 @@ export const SKILLS: Skill[] = [
   {
     id: "ranged-attack",
     name: "Ranged Attack",
-    tier: 0,
+    tier: 1,
     branch: "attack",
     actionType: "ranged",
     hexRange: 3,
@@ -27,8 +27,8 @@ export const SKILLS: Skill[] = [
     statBonus: "damage",
     statBonusAmount: 1,
     cooldown: 0,
-    prerequisites: [],
-    isBase: true,
+    prerequisites: ["melee-attack"],
+    isBase: false,
   },
   {
     id: "movement",
