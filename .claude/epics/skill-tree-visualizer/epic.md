@@ -1,10 +1,10 @@
 ---
 name: skill-tree-visualizer
-status: backlog
+status: open
 created: 2026-03-01T19:50:07Z
 progress: 0%
 prd: .claude/prds/skill-tree-visualizer.md
-github: [Will be updated when synced]
+github: https://github.com/pompoi/tree/issues/1
 ---
 
 # Epic: skill-tree-visualizer
