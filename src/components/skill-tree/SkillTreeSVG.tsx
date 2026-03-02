@@ -24,6 +24,22 @@ const BRANCH_LABELS: { branch: Branch; label: string; color: string; edgeIdx: nu
   { branch: "defend", label: "DEFEND", color: "#22c55e", edgeIdx: 4 },
 ];
 
+// Branch background color sectors (120° each)
+const BRANCH_SECTORS = [
+  { color: "#ef4444", startDeg: 300, endDeg: 60 },   // ATK (top)
+  { color: "#06b6d4", startDeg: 60, endDeg: 180 },    // MOV (bottom-right)
+  { color: "#22c55e", startDeg: 180, endDeg: 300 },   // DEF (bottom-left)
+];
+
+function sectorPath(startDeg: number, endDeg: number, r: number): string {
+  const toRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
+  const x1 = Math.cos(toRad(startDeg)) * r;
+  const y1 = Math.sin(toRad(startDeg)) * r;
+  const x2 = Math.cos(toRad(endDeg)) * r;
+  const y2 = Math.sin(toRad(endDeg)) * r;
+  return `M 0 0 L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
+}
+
 export function SkillTreeSVG() {
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -247,7 +263,22 @@ export function SkillTreeSVG() {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <filter id="bg-blur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="80" />
+          </filter>
         </defs>
+
+        {/* Branch color background wash */}
+        <g filter="url(#bg-blur)">
+          {BRANCH_SECTORS.map(({ color, startDeg, endDeg }) => (
+            <path
+              key={color}
+              d={sectorPath(startDeg, endDeg, 600)}
+              fill={color}
+              opacity={0.12}
+            />
+          ))}
+        </g>
 
         {/* Hex ring outlines */}
         <g>

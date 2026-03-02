@@ -1,19 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useBuildStore } from "@/stores/build-store";
 import { SKILL_MAP, BASE_SKILL_IDS } from "@/data/skills";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { useSkillTooltip } from "@/hooks/use-skill-tooltip";
+import { SkillCard } from "@/components/skill-card/SkillCard";
 import type { Skill, Branch } from "@/types/skill";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PIE_RADIUS = 55;
-const MAX_RADIUS = 300;
-const MAX_RING_WIDTH = 30;
-const ARC_GAP = 1.5; // degrees of gap between slices
-const RING_GAP = 1.5; // px gap between rings
+const WHEEL_RADIUS = 160;
+const SLICE_GAP = 1.5;
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
@@ -21,75 +17,103 @@ const BRANCH_COLORS: Record<Branch, string> = {
   defend: "#22c55e",
 };
 
-// Branch angular ranges (degrees, 0° = top/north, clockwise)
-// Each branch occupies 120°, centered at its angle
-const BRANCH_ARCS: Record<Branch, { start: number; end: number }> = {
-  attack: { start: 300, end: 60 },
-  movement: { start: 60, end: 180 },
-  defend: { start: 180, end: 300 },
-};
+// ─── SVG Helpers ─────────────────────────────────────────────────────────────
 
-// ─── SVG Arc Helpers ──────────────────────────────────────────────────────────
-
-/** Convert degrees (0° = top, clockwise) to standard math radians */
 function degToRad(deg: number): number {
-  // SVG: 0° = top means -90° in standard math, clockwise = positive
   return ((deg - 90) * Math.PI) / 180;
 }
 
 function polarToXY(angleDeg: number, radius: number): { x: number; y: number } {
   const rad = degToRad(angleDeg);
-  return {
-    x: Math.cos(rad) * radius,
-    y: Math.sin(rad) * radius,
-  };
+  return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
 }
 
-/**
- * Build an SVG path for an annular arc segment (donut slice).
- * startDeg/endDeg in our coordinate system (0° = top, clockwise).
- */
-function describeArc(
-  innerR: number,
-  outerR: number,
-  startDeg: number,
-  endDeg: number
-): string {
-  // Normalize so we always sweep clockwise from start to end
+function describeSlice(startDeg: number, endDeg: number, radius: number): string {
   let sweep = endDeg - startDeg;
   if (sweep <= 0) sweep += 360;
   const largeArc = sweep > 180 ? 1 : 0;
-
-  const outerStart = polarToXY(startDeg, outerR);
-  const outerEnd = polarToXY(endDeg, outerR);
-  const innerEnd = polarToXY(endDeg, innerR);
-  const innerStart = polarToXY(startDeg, innerR);
-
-  return [
-    `M ${outerStart.x} ${outerStart.y}`,
-    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
-    `L ${innerEnd.x} ${innerEnd.y}`,
-    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
-    `Z`,
-  ].join(" ");
+  const start = polarToXY(startDeg, radius);
+  const end = polarToXY(endDeg, radius);
+  return `M 0 0 L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
 }
 
-/** Get the midpoint angle of a branch arc (for label placement) */
-function branchMidAngle(branch: Branch): number {
-  const arc = BRANCH_ARCS[branch];
-  let mid = (arc.start + arc.end) / 2;
-  // Handle the wrap-around for attack (300→60)
-  if (arc.start > arc.end) {
-    mid = (arc.start + arc.end + 360) / 2;
-    if (mid >= 360) mid -= 360;
+// ─── Ordering ────────────────────────────────────────────────────────────────
+
+function dfsOrder(group: Skill[]): Skill[] {
+  const ids = new Set(group.map((s) => s.id));
+  const childrenOf = new Map<string, Skill[]>();
+  const roots: Skill[] = [];
+
+  for (const skill of group) {
+    const inGroupPrereqs = skill.prerequisites.filter((id) => ids.has(id));
+    if (inGroupPrereqs.length === 0) roots.push(skill);
+    for (const pid of inGroupPrereqs) {
+      if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+      childrenOf.get(pid)!.push(skill);
+    }
   }
-  return mid;
+
+  const result: Skill[] = [];
+  const visited = new Set<string>();
+
+  function visit(skill: Skill) {
+    if (visited.has(skill.id)) return;
+    visited.add(skill.id);
+    result.push(skill);
+    for (const child of childrenOf.get(skill.id) ?? []) visit(child);
+  }
+
+  for (const root of roots) visit(root);
+  for (const skill of group) {
+    if (!visited.has(skill.id)) result.push(skill);
+  }
+  return result;
+}
+
+function borderKey(skill: Skill): string | null {
+  if (!skill.secondaryBranch) return null;
+  return [skill.branch, skill.secondaryBranch].sort().join(",");
+}
+
+function orderForWheel(skills: Skill[]): { ordered: Skill[]; startAngle: number } {
+  if (skills.length === 0) return { ordered: [], startAngle: 0 };
+
+  const pureATK: Skill[] = [];
+  const atkMov: Skill[] = [];
+  const pureMOV: Skill[] = [];
+  const movDef: Skill[] = [];
+  const pureDEF: Skill[] = [];
+  const defAtk: Skill[] = [];
+
+  for (const skill of skills) {
+    const bk = borderKey(skill);
+    if (bk === "attack,movement") atkMov.push(skill);
+    else if (bk === "defend,movement") movDef.push(skill);
+    else if (bk === "attack,defend") defAtk.push(skill);
+    else if (skill.branch === "attack") pureATK.push(skill);
+    else if (skill.branch === "movement") pureMOV.push(skill);
+    else pureDEF.push(skill);
+  }
+
+  const ordered = [
+    ...dfsOrder(pureATK),
+    ...dfsOrder(atkMov),
+    ...dfsOrder(pureMOV),
+    ...dfsOrder(movDef),
+    ...dfsOrder(pureDEF),
+    ...dfsOrder(defAtk),
+  ];
+
+  const sliceAngle = 360 / ordered.length;
+  const atkCenter = (pureATK.length + defAtk.length / 2) / 2;
+  const startAngle = -atkCenter * sliceAngle;
+
+  return { ordered, startAngle };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SelectionWheel() {
-  // Rehydrate persisted Zustand state on mount
   useEffect(() => {
     useBuildStore.persist.rehydrate();
   }, []);
@@ -98,74 +122,45 @@ export function SelectionWheel() {
   const activeSlot = useBuildStore((s) => s.activeSlot);
   const activeBuild = builds[activeSlot];
 
-  const { tooltipSkill, tooltipPosition, showTooltip, hideTooltip } =
-    useSkillTooltip();
+  const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
-  // ─── Derive base skills and selections from decision log ────────────
-  const baseSkills = useMemo(
-    () =>
-      BASE_SKILL_IDS.map((id) => SKILL_MAP.get(id)).filter(Boolean) as Skill[],
-    []
-  );
+  // The card to display: hovered takes priority, then selected
+  const displayedSkill = hoveredSkill ?? selectedSkill;
 
-  const selections = useMemo(() => {
+  const allSkills = useMemo(() => {
     if (!activeBuild) return [];
     return activeBuild.decisionLog
-      .filter((entry) => !BASE_SKILL_IDS.includes(entry.skillId))
       .map((entry) => SKILL_MAP.get(entry.skillId))
       .filter(Boolean) as Skill[];
   }, [activeBuild]);
 
-  // ─── Ring dimensions ────────────────────────────────────────────────
-  const ringWidth = useMemo(() => {
-    if (selections.length === 0) return MAX_RING_WIDTH;
-    return Math.min(
-      MAX_RING_WIDTH,
-      (MAX_RADIUS - PIE_RADIUS - selections.length * RING_GAP) /
-        selections.length
-    );
-  }, [selections.length]);
-
-  // ─── Outer extent for viewBox ───────────────────────────────────────
-  const outerExtent = useMemo(() => {
-    if (selections.length === 0) return PIE_RADIUS + 40;
-    return PIE_RADIUS + selections.length * (ringWidth + RING_GAP) + 30;
-  }, [selections.length, ringWidth]);
-
-  const vbSize = Math.max(outerExtent * 2 + 60, 300);
-
-  // ─── Hover handler ──────────────────────────────────────────────────
-  const handleArcHover = useCallback(
-    (skill: Skill, event: React.MouseEvent) => {
-      showTooltip(skill, event.clientX, event.clientY);
-    },
-    [showTooltip]
+  const { ordered, startAngle } = useMemo(
+    () => orderForWheel(allSkills),
+    [allSkills]
   );
 
-  // ─── Build base skill map by branch for pie labels ──────────────────
-  const baseByBranch = useMemo(() => {
-    const map = new Map<Branch, Skill>();
-    for (const skill of baseSkills) {
-      map.set(skill.branch, skill);
-    }
-    return map;
-  }, [baseSkills]);
+  const vbSize = (WHEEL_RADIUS + 40) * 2;
+  const sliceAngle = ordered.length > 0 ? 360 / ordered.length : 360;
 
-  const isEmpty = selections.length === 0;
+  const handleClick = useCallback((skill: Skill) => {
+    setSelectedSkill((prev) => (prev?.id === skill.id ? null : skill));
+  }, []);
+
+  const isEmpty = ordered.length === 0;
 
   return (
-    <div className="w-full flex items-center justify-center">
+    <div className="w-full flex items-center justify-center gap-8">
       <svg
         viewBox={`${-vbSize / 2} ${-vbSize / 2} ${vbSize} ${vbSize}`}
-        className="w-full max-w-[700px] h-auto"
+        className="w-full max-w-[500px] h-auto flex-shrink-0"
         style={{ maxHeight: "calc(100vh - 200px)" }}
         xmlns="http://www.w3.org/2000/svg"
-        onMouseLeave={hideTooltip}
+        onMouseLeave={() => setHoveredSkill(null)}
       >
-        {/* Glow filter */}
         <defs>
-          <filter id="ring-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
+          <filter id="slice-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -173,164 +168,110 @@ export function SelectionWheel() {
           </filter>
         </defs>
 
-        {/* ── Center pie chart (base skills) ── */}
-        {(["attack", "movement", "defend"] as Branch[]).map((branch) => {
-          const arc = BRANCH_ARCS[branch];
-          const color = BRANCH_COLORS[branch];
-          const skill = baseByBranch.get(branch);
-          const mid = branchMidAngle(branch);
-          const labelPos = polarToXY(mid, PIE_RADIUS * 0.55);
+        {ordered.map((skill, i) => {
+          const sStart = startAngle + i * sliceAngle;
+          const sEnd = startAngle + (i + 1) * sliceAngle;
+          const gap = ordered.length > 1 ? SLICE_GAP / 2 : 0;
+
+          const color = BRANCH_COLORS[skill.branch];
+          const midAngle = sStart + sliceAngle / 2;
+          const labelPos = polarToXY(midAngle, WHEEL_RADIUS * 0.55);
+
+          const fontSize = Math.max(6, Math.min(11, sliceAngle * 0.18));
+          const showLabel = sliceAngle > 12;
+
+          const isHighlighted = displayedSkill?.id === skill.id;
+
+          // Outer arc endpoints
+          const arcS = polarToXY(sStart + gap, WHEEL_RADIUS);
+          const arcE = polarToXY(sEnd - gap, WHEEL_RADIUS);
+          let sw = (sEnd - gap) - (sStart + gap);
+          if (sw <= 0) sw += 360;
+          const la = sw > 180 ? 1 : 0;
 
           return (
             <g
-              key={branch}
-              onMouseEnter={(e) => skill && handleArcHover(skill, e)}
-              onMouseMove={(e) => skill && handleArcHover(skill, e)}
-              onMouseLeave={hideTooltip}
-              style={{ cursor: "default" }}
+              key={skill.id}
+              onMouseEnter={() => setHoveredSkill(skill)}
+              onMouseLeave={() => setHoveredSkill(null)}
+              onClick={() => handleClick(skill)}
+              style={{ cursor: "pointer" }}
             >
+              {/* Hit area (always covers full slice) */}
               <path
-                d={describeArc(0, PIE_RADIUS, arc.start + ARC_GAP / 2, arc.end - ARC_GAP / 2)}
-                fill={color}
-                fillOpacity={0.85}
-                stroke="#ffffff"
-                strokeWidth={1.5}
+                d={describeSlice(sStart + gap, sEnd - gap, WHEEL_RADIUS)}
+                fill={isHighlighted ? color : "transparent"}
+                fillOpacity={isHighlighted ? 0.8 : 0}
+                stroke="none"
               />
-              <text
-                x={labelPos.x}
-                y={labelPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#ffffff"
-                fontSize={9}
-                fontWeight="600"
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {skill?.name ?? branch}
-              </text>
-            </g>
-          );
-        })}
 
-        {/* ── Selection rings ── */}
-        {selections.map((skill, i) => {
-          const innerR = PIE_RADIUS + i * (ringWidth + RING_GAP) + RING_GAP;
-          const outerR = innerR + ringWidth;
-          const branch = skill.branch;
-          const arc = BRANCH_ARCS[branch];
-          const color = BRANCH_COLORS[branch];
-          const mid = branchMidAngle(branch);
-          const labelR = (innerR + outerR) / 2;
-          const labelPos = polarToXY(mid, labelR);
-
-          // Font size scales with ring width, clamped
-          const fontSize = Math.max(6, Math.min(10, ringWidth * 0.4));
-          const showLabel = ringWidth > 10;
-
-          return (
-            <g
-              key={`${skill.id}-${i}`}
-              onMouseEnter={(e) => handleArcHover(skill, e)}
-              onMouseMove={(e) => handleArcHover(skill, e)}
-              onMouseLeave={hideTooltip}
-              style={{ cursor: "default" }}
-            >
-              {/* Faint ring outline for context */}
-              <circle
-                cx={0}
-                cy={0}
-                r={(innerR + outerR) / 2}
+              {/* Outer arc — always visible */}
+              <path
+                d={`M ${arcS.x} ${arcS.y} A ${WHEEL_RADIUS} ${WHEEL_RADIUS} 0 ${la} 1 ${arcE.x} ${arcE.y}`}
                 fill="none"
-                stroke="#ffffff"
-                strokeWidth={0.5}
-                opacity={0.04}
+                stroke={color}
+                strokeWidth={isHighlighted ? 6 : 3}
+                strokeLinecap="round"
               />
 
-              {/* Primary branch arc */}
-              <path
-                d={describeArc(innerR, outerR, arc.start + ARC_GAP / 2, arc.end - ARC_GAP / 2)}
-                fill={color}
-                fillOpacity={0.8}
-                stroke="#ffffff"
-                strokeWidth={0.8}
-                filter="url(#ring-glow)"
-              />
+              {/* Spoke line at slice start */}
+              {ordered.length > 1 && (
+                <line
+                  x1={0}
+                  y1={0}
+                  x2={arcS.x}
+                  y2={arcS.y}
+                  stroke="#ffffff"
+                  strokeWidth={0.5}
+                  opacity={0.1}
+                />
+              )}
 
-              {/* Secondary branch stripe (thin inner edge) */}
-              {skill.secondaryBranch && (() => {
-                const secArc = BRANCH_ARCS[skill.secondaryBranch];
-                const secColor = BRANCH_COLORS[skill.secondaryBranch];
-                const stripeWidth = Math.max(2, ringWidth * 0.2);
-                return (
-                  <path
-                    d={describeArc(
-                      innerR,
-                      innerR + stripeWidth,
-                      secArc.start + ARC_GAP / 2,
-                      secArc.end - ARC_GAP / 2
-                    )}
-                    fill={secColor}
-                    fillOpacity={0.6}
-                    stroke="none"
-                  />
-                );
-              })()}
-
-              {/* Skill name label */}
+              {/* Label — only when highlighted or slices are wide enough */}
               {showLabel && (
                 <text
                   x={labelPos.x}
                   y={labelPos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill="#ffffff"
+                  fill={isHighlighted ? "#ffffff" : color}
                   fontSize={fontSize}
-                  fontWeight="500"
+                  fontWeight="600"
+                  opacity={isHighlighted ? 1 : 0.5}
                   style={{ pointerEvents: "none", userSelect: "none" }}
                 >
                   {skill.name}
                 </text>
               )}
-
-              {/* Ring number (small, at the arc's inner edge center) */}
-              {showLabel && (() => {
-                const numPos = polarToXY(mid, innerR + 6);
-                return (
-                  <text
-                    x={numPos.x}
-                    y={numPos.y}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fill="#ffffff"
-                    fontSize={6}
-                    fontWeight="600"
-                    opacity={0.5}
-                    style={{ pointerEvents: "none", userSelect: "none" }}
-                  >
-                    {i + 1}
-                  </text>
-                );
-              })()}
             </g>
           );
         })}
 
-        {/* ── Empty state ── */}
         {isEmpty && (
           <text
             x={0}
-            y={PIE_RADIUS + 30}
+            y={0}
             textAnchor="middle"
+            dominantBaseline="middle"
             fill="#ffffff"
             fontSize={10}
             opacity={0.3}
           >
-            Unlock skills in the tree to see rings here
+            No skills selected
           </text>
         )}
       </svg>
 
-      <Tooltip skill={tooltipSkill} position={tooltipPosition} />
+      {/* Skill card panel */}
+      <div className="flex-shrink-0 w-[200px]">
+        {displayedSkill ? (
+          <SkillCard skill={displayedSkill} />
+        ) : (
+          <div className="flex items-center justify-center h-[280px] text-white/20 text-xs text-center">
+            Hover a slice to preview
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -137,14 +137,6 @@ export function SkillCard({ skill, compact = false }: SkillCardProps) {
           {skill.description}
         </p>
 
-        {/* Stat bonus */}
-        <div className="flex items-center gap-2 text-[10px]">
-          <span className="text-white/50">Stat:</span>
-          <span className="font-semibold" style={{ color: branchColor }}>
-            +{skill.statBonusAmount} {skill.statBonus}
-          </span>
-        </div>
-
         {/* Cooldown */}
         {skill.cooldown > 0 && (
           <div className="flex items-center gap-2 text-[10px]">

@@ -67,7 +67,7 @@ const BRANCH_EDGE: Record<Branch, number> = {
   defend: 4,
 };
 
-/** Map a pair of branches to their border edge. */
+/** Map a pair of branches to their shared border edge. */
 function borderEdge(a: Branch, b: Branch): number {
   const pair = [a, b].sort().join(",");
   switch (pair) {
@@ -82,6 +82,10 @@ function borderEdge(a: Branch, b: Branch): number {
   }
 }
 
+/**
+ * Pure branch skills → branch edge (0, 2, 4).
+ * Hybrids → border edge between their two branches (1, 3, 5).
+ */
 function getEdgeIndex(skill: Skill): number {
   if (skill.secondaryBranch) {
     return borderEdge(skill.branch, skill.secondaryBranch);
