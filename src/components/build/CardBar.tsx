@@ -22,7 +22,7 @@ export function CardBar() {
   }, [activeBuild]);
 
   return (
-    <div className="h-40 bg-gray-950 border-t border-white/10 flex items-center px-4 gap-3 overflow-x-auto flex-shrink-0">
+    <div className="h-40 bg-gray-950 border-t border-white/10 hidden md:flex items-center px-4 gap-3 overflow-x-auto flex-shrink-0">
       {/* Left: Base skills */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest mr-1 vertical-label">

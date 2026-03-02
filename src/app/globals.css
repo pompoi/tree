@@ -91,9 +91,15 @@ body {
   }
 }
 
-/* ─── Responsive: Sidebar adjustments for small screens ───────────────────── */
+/* ─── Responsive: Mobile adjustments ──────────────────────────────────────── */
 
 @media (max-width: 768px) {
+  html,
+  body {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Stack sidebar below tree on small screens */
   .flex-1.flex.min-h-0 {
     flex-direction: column;
@@ -102,7 +108,7 @@ body {
   /* Let sidebar take full width and shrink height */
   aside.w-72 {
     width: 100%;
-    max-height: 200px;
+    max-height: 160px;
     border-left: none;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }

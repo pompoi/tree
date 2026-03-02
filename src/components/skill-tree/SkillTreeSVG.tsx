@@ -46,8 +46,12 @@ export function SkillTreeSVG() {
   // ─── Pan & Zoom state ──────────────────────────────────────────────
   const [viewBox, setViewBox] = useState(DEFAULT_VB);
   const [isPanning, setIsPanning] = useState(false);
+  const pointerDownRef = useRef(false);
+  const hasPannedRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const viewBoxStartRef = useRef(DEFAULT_VB);
+  const pinchStartDistRef = useRef(0);
+  const PAN_THRESHOLD = 5;
 
   // Rehydrate persisted Zustand state on mount
   useEffect(() => {
@@ -161,73 +165,131 @@ export function SkillTreeSVG() {
     [unlockedSet, unlockSkill, lockSkill]
   );
 
+  // ─── Shared pan logic ──────────────────────────────────────────────
+  const applyPan = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const dx = clientX - panStartRef.current.x;
+    const dy = clientY - panStartRef.current.y;
+
+    if (!hasPannedRef.current && Math.abs(dx) + Math.abs(dy) < PAN_THRESHOLD) return;
+    hasPannedRef.current = true;
+    setIsPanning(true);
+
+    const rect = svg.getBoundingClientRect();
+    const scaleX = viewBoxStartRef.current.w / rect.width;
+    const scaleY = viewBoxStartRef.current.h / rect.height;
+
+    setViewBox({
+      ...viewBoxStartRef.current,
+      x: viewBoxStartRef.current.x - dx * scaleX,
+      y: viewBoxStartRef.current.y - dy * scaleY,
+    });
+  }, []);
+
+  const applyZoom = useCallback((scaleFactor: number) => {
+    setViewBox((prev) => {
+      const newW = prev.w * scaleFactor;
+      const newH = prev.h * scaleFactor;
+      const currentScale = DEFAULT_VB.w / newW;
+      if (currentScale < MIN_SCALE || currentScale > MAX_SCALE) return prev;
+      const dw = newW - prev.w;
+      const dh = newH - prev.h;
+      return { x: prev.x - dw / 2, y: prev.y - dh / 2, w: newW, h: newH };
+    });
+  }, []);
+
   // ─── Wheel zoom ────────────────────────────────────────────────────
   const handleWheel = useCallback(
     (e: React.WheelEvent<SVGSVGElement>) => {
       e.preventDefault();
-      const scaleFactor = e.deltaY > 0 ? 1.1 : 0.9;
-
-      setViewBox((prev) => {
-        const newW = prev.w * scaleFactor;
-        const newH = prev.h * scaleFactor;
-
-        const currentScale = DEFAULT_VB.w / newW;
-        if (currentScale < MIN_SCALE || currentScale > MAX_SCALE) {
-          return prev;
-        }
-
-        const dw = newW - prev.w;
-        const dh = newH - prev.h;
-
-        return {
-          x: prev.x - dw / 2,
-          y: prev.y - dh / 2,
-          w: newW,
-          h: newH,
-        };
-      });
+      applyZoom(e.deltaY > 0 ? 1.1 : 0.9);
     },
-    []
+    [applyZoom]
   );
 
-  // ─── Pan (mouse drag) ──────────────────────────────────────────────
+  // ─── Mouse pan (left-click drag) ─────────────────────────────────
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      if (e.button === 1 || e.shiftKey) {
-        e.preventDefault();
-        setIsPanning(true);
-        panStartRef.current = { x: e.clientX, y: e.clientY };
-        viewBoxStartRef.current = viewBox;
-      }
+      if (e.button !== 0 && e.button !== 1) return;
+      pointerDownRef.current = true;
+      hasPannedRef.current = false;
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      viewBoxStartRef.current = viewBox;
     },
     [viewBox]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      if (!isPanning) return;
-
-      const svg = svgRef.current;
-      if (!svg) return;
-
-      const dx = e.clientX - panStartRef.current.x;
-      const dy = e.clientY - panStartRef.current.y;
-
-      const rect = svg.getBoundingClientRect();
-      const scaleX = viewBoxStartRef.current.w / rect.width;
-      const scaleY = viewBoxStartRef.current.h / rect.height;
-
-      setViewBox({
-        ...viewBoxStartRef.current,
-        x: viewBoxStartRef.current.x - dx * scaleX,
-        y: viewBoxStartRef.current.y - dy * scaleY,
-      });
+      if (!pointerDownRef.current) return;
+      applyPan(e.clientX, e.clientY);
     },
-    [isPanning]
+    [applyPan]
   );
 
   const handleMouseUp = useCallback(() => {
+    pointerDownRef.current = false;
     setIsPanning(false);
+  }, []);
+
+  // ─── Touch pan & pinch zoom ───────────────────────────────────────
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<SVGSVGElement>) => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        pointerDownRef.current = true;
+        hasPannedRef.current = false;
+        panStartRef.current = { x: t.clientX, y: t.clientY };
+        viewBoxStartRef.current = viewBox;
+      } else if (e.touches.length === 2) {
+        pointerDownRef.current = false;
+        setIsPanning(false);
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        pinchStartDistRef.current = Math.sqrt(dx * dx + dy * dy);
+        viewBoxStartRef.current = viewBox;
+      }
+    },
+    [viewBox]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<SVGSVGElement>) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1 && pointerDownRef.current) {
+        const t = e.touches[0];
+        applyPan(t.clientX, t.clientY);
+      } else if (e.touches.length === 2 && pinchStartDistRef.current > 0) {
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const scale = pinchStartDistRef.current / dist;
+
+        const newW = viewBoxStartRef.current.w * scale;
+        const newH = viewBoxStartRef.current.h * scale;
+        const currentScale = DEFAULT_VB.w / newW;
+        if (currentScale < MIN_SCALE || currentScale > MAX_SCALE) return;
+
+        const dw = newW - viewBoxStartRef.current.w;
+        const dh = newH - viewBoxStartRef.current.h;
+        setViewBox({
+          x: viewBoxStartRef.current.x - dw / 2,
+          y: viewBoxStartRef.current.y - dh / 2,
+          w: newW,
+          h: newH,
+        });
+      }
+    },
+    [applyPan]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    pointerDownRef.current = false;
+    setIsPanning(false);
+    pinchStartDistRef.current = 0;
   }, []);
 
   const handleDoubleClick = useCallback(() => {
@@ -241,8 +303,9 @@ export function SkillTreeSVG() {
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
         className="w-full max-w-[860px] h-auto"
         style={{
-          maxHeight: "calc(100vh - 200px)",
+          maxHeight: "calc(100dvh - 160px)",
           cursor: isPanning ? "grabbing" : "default",
+          touchAction: "none",
         }}
         xmlns="http://www.w3.org/2000/svg"
         onWheel={handleWheel}
@@ -253,6 +316,9 @@ export function SkillTreeSVG() {
           handleMouseUp();
           hideTooltip();
         }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onDoubleClick={handleDoubleClick}
       >
         <defs>

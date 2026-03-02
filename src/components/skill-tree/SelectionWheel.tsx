@@ -2,20 +2,36 @@
 
 import { useEffect, useMemo, useCallback, useState } from "react";
 import { useBuildStore } from "@/stores/build-store";
-import { SKILL_MAP, BASE_SKILL_IDS } from "@/data/skills";
+import { SKILL_MAP } from "@/data/skills";
 import { SkillCard } from "@/components/skill-card/SkillCard";
 import type { Skill, Branch } from "@/types/skill";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WHEEL_RADIUS = 160;
-const SLICE_GAP = 1.5;
+/** Ring boundaries — each tier's band runs from RING_EDGES[tier] to RING_EDGES[tier+1]. */
+const RING_EDGES = [0, 36, 86, 136, 186];
+const SLICE_GAP = 1.2;
+const SECTOR_PAD = 3;
+const OUTER_MARGIN = 20;
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
   movement: "#06b6d4",
   defend: "#22c55e",
 };
+
+/** Fixed 120° sectors — ATK at top, MOV bottom-right, DEF bottom-left. */
+const SECTORS: {
+  branch: Branch;
+  start: number;
+  end: number;
+  cwNeighbor: Branch;
+  ccwNeighbor: Branch;
+}[] = [
+  { branch: "attack", start: -60, end: 60, cwNeighbor: "movement", ccwNeighbor: "defend" },
+  { branch: "movement", start: 60, end: 180, cwNeighbor: "defend", ccwNeighbor: "attack" },
+  { branch: "defend", start: 180, end: 300, cwNeighbor: "attack", ccwNeighbor: "movement" },
+];
 
 // ─── SVG Helpers ─────────────────────────────────────────────────────────────
 
@@ -28,18 +44,49 @@ function polarToXY(angleDeg: number, radius: number): { x: number; y: number } {
   return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
 }
 
-function describeSlice(startDeg: number, endDeg: number, radius: number): string {
+/** Annular arc (ring segment). */
+function describeArc(
+  startDeg: number,
+  endDeg: number,
+  innerR: number,
+  outerR: number
+): string {
   let sweep = endDeg - startDeg;
   if (sweep <= 0) sweep += 360;
-  const largeArc = sweep > 180 ? 1 : 0;
-  const start = polarToXY(startDeg, radius);
-  const end = polarToXY(endDeg, radius);
-  return `M 0 0 L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+  const la = sweep > 180 ? 1 : 0;
+
+  const os = polarToXY(startDeg, outerR);
+  const oe = polarToXY(endDeg, outerR);
+  const is_ = polarToXY(startDeg, innerR);
+  const ie = polarToXY(endDeg, innerR);
+
+  return [
+    `M ${os.x} ${os.y}`,
+    `A ${outerR} ${outerR} 0 ${la} 1 ${oe.x} ${oe.y}`,
+    `L ${ie.x} ${ie.y}`,
+    `A ${innerR} ${innerR} 0 ${la} 0 ${is_.x} ${is_.y}`,
+    `Z`,
+  ].join(" ");
+}
+
+/** Just the outer arc edge. */
+function describeOuterArc(
+  startDeg: number,
+  endDeg: number,
+  radius: number
+): string {
+  let sweep = endDeg - startDeg;
+  if (sweep <= 0) sweep += 360;
+  const la = sweep > 180 ? 1 : 0;
+  const s = polarToXY(startDeg, radius);
+  const e = polarToXY(endDeg, radius);
+  return `M ${s.x} ${s.y} A ${radius} ${radius} 0 ${la} 1 ${e.x} ${e.y}`;
 }
 
 // ─── Ordering ────────────────────────────────────────────────────────────────
 
 function dfsOrder(group: Skill[]): Skill[] {
+  if (group.length === 0) return [];
   const ids = new Set(group.map((s) => s.id));
   const childrenOf = new Map<string, Skill[]>();
   const roots: Skill[] = [];
@@ -70,45 +117,36 @@ function dfsOrder(group: Skill[]): Skill[] {
   return result;
 }
 
-function borderKey(skill: Skill): string | null {
-  if (!skill.secondaryBranch) return null;
-  return [skill.branch, skill.secondaryBranch].sort().join(",");
+/**
+ * Order skills within a sector:
+ * CCW-border hybrids → pure branch → CW-border hybrids.
+ */
+function orderInSector(
+  skills: Skill[],
+  cwNeighbor: Branch,
+  ccwNeighbor: Branch
+): Skill[] {
+  const ccwHybrids = skills.filter((s) => s.secondaryBranch === ccwNeighbor);
+  const pure = skills.filter((s) => !s.secondaryBranch);
+  const cwHybrids = skills.filter((s) => s.secondaryBranch === cwNeighbor);
+
+  return [
+    ...dfsOrder(ccwHybrids),
+    ...dfsOrder(pure),
+    ...dfsOrder(cwHybrids),
+  ];
 }
 
-function orderForWheel(skills: Skill[]): { ordered: Skill[]; startAngle: number } {
-  if (skills.length === 0) return { ordered: [], startAngle: 0 };
+// ─── Layout Types ────────────────────────────────────────────────────────────
 
-  const pureATK: Skill[] = [];
-  const atkMov: Skill[] = [];
-  const pureMOV: Skill[] = [];
-  const movDef: Skill[] = [];
-  const pureDEF: Skill[] = [];
-  const defAtk: Skill[] = [];
-
-  for (const skill of skills) {
-    const bk = borderKey(skill);
-    if (bk === "attack,movement") atkMov.push(skill);
-    else if (bk === "defend,movement") movDef.push(skill);
-    else if (bk === "attack,defend") defAtk.push(skill);
-    else if (skill.branch === "attack") pureATK.push(skill);
-    else if (skill.branch === "movement") pureMOV.push(skill);
-    else pureDEF.push(skill);
-  }
-
-  const ordered = [
-    ...dfsOrder(pureATK),
-    ...dfsOrder(atkMov),
-    ...dfsOrder(pureMOV),
-    ...dfsOrder(movDef),
-    ...dfsOrder(pureDEF),
-    ...dfsOrder(defAtk),
-  ];
-
-  const sliceAngle = 360 / ordered.length;
-  const atkCenter = (pureATK.length + defAtk.length / 2) / 2;
-  const startAngle = -atkCenter * sliceAngle;
-
-  return { ordered, startAngle };
+interface ArcSlot {
+  skill: Skill;
+  startDeg: number;
+  endDeg: number;
+  midDeg: number;
+  innerR: number;
+  outerR: number;
+  midR: number;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -125,7 +163,6 @@ export function SelectionWheel() {
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
-  // The card to display: hovered takes priority, then selected
   const displayedSkill = hoveredSkill ?? selectedSkill;
 
   const allSkills = useMemo(() => {
@@ -135,59 +172,149 @@ export function SelectionWheel() {
       .filter(Boolean) as Skill[];
   }, [activeBuild]);
 
-  const { ordered, startAngle } = useMemo(
-    () => orderForWheel(allSkills),
-    [allSkills]
-  );
+  // Compute arc slots: fixed sectors, contiguous ring bands
+  const arcSlots = useMemo(() => {
+    const slots: ArcSlot[] = [];
 
-  const vbSize = (WHEEL_RADIUS + 40) * 2;
-  const sliceAngle = ordered.length > 0 ? 360 / ordered.length : 360;
+    const byTier = new Map<number, Skill[]>();
+    for (const skill of allSkills) {
+      if (!byTier.has(skill.tier)) byTier.set(skill.tier, []);
+      byTier.get(skill.tier)!.push(skill);
+    }
+
+    for (const [tier, tierSkills] of byTier) {
+      const innerR = RING_EDGES[tier];
+      const outerR = RING_EDGES[tier + 1] ?? RING_EDGES[RING_EDGES.length - 1];
+      const midR = (innerR + outerR) / 2;
+
+      for (const sector of SECTORS) {
+        const sectorSkills = tierSkills.filter(
+          (s) => s.branch === sector.branch
+        );
+        if (sectorSkills.length === 0) continue;
+
+        const ordered = orderInSector(
+          sectorSkills,
+          sector.cwNeighbor,
+          sector.ccwNeighbor
+        );
+
+        const padStart = sector.start + SECTOR_PAD;
+        const padEnd = sector.end - SECTOR_PAD;
+        const available = padEnd - padStart;
+        const count = ordered.length;
+        const sliceSize = available / count;
+
+        for (let i = 0; i < count; i++) {
+          const start = padStart + i * sliceSize + SLICE_GAP / 2;
+          const end = padStart + (i + 1) * sliceSize - SLICE_GAP / 2;
+          slots.push({
+            skill: ordered[i],
+            startDeg: start,
+            endDeg: end,
+            midDeg: (start + end) / 2,
+            innerR,
+            outerR,
+            midR,
+          });
+        }
+      }
+    }
+
+    return slots;
+  }, [allSkills]);
 
   const handleClick = useCallback((skill: Skill) => {
     setSelectedSkill((prev) => (prev?.id === skill.id ? null : skill));
   }, []);
 
-  const isEmpty = ordered.length === 0;
+  const maxTier = allSkills.length > 0
+    ? Math.max(...allSkills.map((s) => s.tier))
+    : 0;
+  const wheelOuterR = RING_EDGES[Math.min(maxTier + 1, RING_EDGES.length - 1)];
+  const vbR = wheelOuterR + OUTER_MARGIN;
+  const vbSize = vbR * 2;
+
+  const isEmpty = allSkills.length === 0;
+
+  const sectorBoundaryAngles = [-60, 60, 180];
 
   return (
-    <div className="w-full flex items-center justify-center gap-8">
+    <div className="w-full flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
       <svg
         viewBox={`${-vbSize / 2} ${-vbSize / 2} ${vbSize} ${vbSize}`}
-        className="w-full max-w-[500px] h-auto flex-shrink-0"
-        style={{ maxHeight: "calc(100vh - 200px)" }}
+        className="w-full max-w-[min(500px,100%)] h-auto"
+        style={{ maxHeight: "calc(100dvh - 200px)" }}
         xmlns="http://www.w3.org/2000/svg"
         onMouseLeave={() => setHoveredSkill(null)}
       >
-        <defs>
-          <filter id="slice-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+        {/* Ring boundary circles */}
+        {RING_EDGES.slice(1, maxTier + 2).map((r, i) => (
+          <circle
+            key={i}
+            cx={0}
+            cy={0}
+            r={r}
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth={0.5}
+            opacity={0.06}
+          />
+        ))}
 
-        {ordered.map((skill, i) => {
-          const sStart = startAngle + i * sliceAngle;
-          const sEnd = startAngle + (i + 1) * sliceAngle;
-          const gap = ordered.length > 1 ? SLICE_GAP / 2 : 0;
+        {/* Sector boundary lines */}
+        {!isEmpty &&
+          sectorBoundaryAngles.map((deg) => {
+            const p1 = polarToXY(deg, RING_EDGES[0]);
+            const p2 = polarToXY(deg, wheelOuterR);
+            return (
+              <line
+                key={deg}
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke="#ffffff"
+                strokeWidth={0.6}
+                opacity={0.08}
+              />
+            );
+          })}
 
+        {/* Branch labels outside outermost ring */}
+        {!isEmpty &&
+          SECTORS.map(({ branch, start, end }) => {
+            const midDeg = (start + end) / 2;
+            const labelR = wheelOuterR + 12;
+            const pos = polarToXY(midDeg, labelR);
+            return (
+              <text
+                key={branch}
+                x={pos.x}
+                y={pos.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={BRANCH_COLORS[branch]}
+                fontSize={8}
+                fontWeight="600"
+                letterSpacing="0.08em"
+                opacity={0.6}
+                style={{ pointerEvents: "none", userSelect: "none" }}
+              >
+                {branch.toUpperCase()}
+              </text>
+            );
+          })}
+
+        {/* Arc segments */}
+        {arcSlots.map(({ skill, startDeg, endDeg, midDeg, innerR, outerR, midR }) => {
           const color = BRANCH_COLORS[skill.branch];
-          const midAngle = sStart + sliceAngle / 2;
-          const labelPos = polarToXY(midAngle, WHEEL_RADIUS * 0.55);
-
-          const fontSize = Math.max(6, Math.min(11, sliceAngle * 0.18));
-          const showLabel = sliceAngle > 12;
-
           const isHighlighted = displayedSkill?.id === skill.id;
 
-          // Outer arc endpoints
-          const arcS = polarToXY(sStart + gap, WHEEL_RADIUS);
-          const arcE = polarToXY(sEnd - gap, WHEEL_RADIUS);
-          let sw = (sEnd - gap) - (sStart + gap);
-          if (sw <= 0) sw += 360;
-          const la = sw > 180 ? 1 : 0;
+          const labelPos = polarToXY(midDeg, midR);
+          const arcSpan = endDeg - startDeg;
+          const fontSize = Math.max(4, Math.min(8, arcSpan * 0.18));
+          const showLabel = arcSpan > 10;
 
           return (
             <g
@@ -197,37 +324,35 @@ export function SelectionWheel() {
               onClick={() => handleClick(skill)}
               style={{ cursor: "pointer" }}
             >
-              {/* Hit area (always covers full slice) */}
+              {/* Hit area */}
               <path
-                d={describeSlice(sStart + gap, sEnd - gap, WHEEL_RADIUS)}
+                d={describeArc(startDeg, endDeg, innerR, outerR)}
                 fill={isHighlighted ? color : "transparent"}
-                fillOpacity={isHighlighted ? 0.8 : 0}
+                fillOpacity={isHighlighted ? 0.7 : 0}
                 stroke="none"
               />
 
-              {/* Outer arc — always visible */}
+              {/* Outer arc */}
               <path
-                d={`M ${arcS.x} ${arcS.y} A ${WHEEL_RADIUS} ${WHEEL_RADIUS} 0 ${la} 1 ${arcE.x} ${arcE.y}`}
+                d={describeOuterArc(startDeg, endDeg, outerR)}
                 fill="none"
                 stroke={color}
-                strokeWidth={isHighlighted ? 6 : 3}
+                strokeWidth={isHighlighted ? 4 : 2}
                 strokeLinecap="round"
               />
 
-              {/* Spoke line at slice start */}
-              {ordered.length > 1 && (
-                <line
-                  x1={0}
-                  y1={0}
-                  x2={arcS.x}
-                  y2={arcS.y}
-                  stroke="#ffffff"
-                  strokeWidth={0.5}
-                  opacity={0.1}
-                />
-              )}
+              {/* Radial spoke at slice start */}
+              <line
+                x1={polarToXY(startDeg - SLICE_GAP / 2, innerR).x}
+                y1={polarToXY(startDeg - SLICE_GAP / 2, innerR).y}
+                x2={polarToXY(startDeg - SLICE_GAP / 2, outerR).x}
+                y2={polarToXY(startDeg - SLICE_GAP / 2, outerR).y}
+                stroke="#ffffff"
+                strokeWidth={0.3}
+                opacity={0.06}
+              />
 
-              {/* Label — only when highlighted or slices are wide enough */}
+              {/* Label */}
               {showLabel && (
                 <text
                   x={labelPos.x}
@@ -237,7 +362,7 @@ export function SelectionWheel() {
                   fill={isHighlighted ? "#ffffff" : color}
                   fontSize={fontSize}
                   fontWeight="600"
-                  opacity={isHighlighted ? 1 : 0.5}
+                  opacity={isHighlighted ? 1 : 0.45}
                   style={{ pointerEvents: "none", userSelect: "none" }}
                 >
                   {skill.name}
@@ -263,12 +388,12 @@ export function SelectionWheel() {
       </svg>
 
       {/* Skill card panel */}
-      <div className="flex-shrink-0 w-[200px]">
+      <div className="w-full md:w-[200px] md:flex-shrink-0">
         {displayedSkill ? (
           <SkillCard skill={displayedSkill} />
         ) : (
           <div className="flex items-center justify-center h-[280px] text-white/20 text-xs text-center">
-            Hover a slice to preview
+            Tap a segment to preview
           </div>
         )}
       </div>
