@@ -712,6 +712,11 @@ export function UnifiedSkillGraph({
               fillOpacity = 0.15;
             }
 
+            // Make base skills slightly more prominent when advantage/disadvantage highlighted
+            if ((isAdvantage || isDisadvantage) && !showGlow && isBase) {
+              strokeW = 3.5; // slightly thicker than regular skill's 3
+            }
+
             const handleHover = (e: React.MouseEvent) => {
               if (isBase) {
                 handleBaseHover(skill.branch, e);
