@@ -36,6 +36,20 @@ const BRANCH_ICONS: Record<Branch, string> = {
 
 const BRANCH_HEX_R = 36;
 
+const BEATS: Record<Branch, Branch> = {
+  attack: "movement",
+  movement: "defend",
+  defend: "attack",
+};
+const LOSES_TO: Record<Branch, Branch> = {
+  attack: "defend",
+  movement: "attack",
+  defend: "movement",
+};
+
+const ADVANTAGE_COLOR = "#fbbf24"; // gold
+const DISADVANTAGE_COLOR = "#a855f7"; // purple
+
 const BASE_SKILL_IDS = new Set(["melee-attack", "move", "defend"]);
 
 const BASE_SKILLS: Record<Branch, string> = {
@@ -193,6 +207,21 @@ export function UnifiedSkillGraph({
     }
     return ids;
   }, [hoveredSkill, selectedSkillId]);
+
+  // ─── Advantage/disadvantage sets (YOMI highlighting) ─────────────
+  const { advantageIds, disadvantageIds } = useMemo(() => {
+    if (!hoveredSkill) return { advantageIds: new Set<string>(), disadvantageIds: new Set<string>() };
+    const beatenBranch = BEATS[hoveredSkill.branch];
+    const beatingBranch = LOSES_TO[hoveredSkill.branch];
+    const adv = new Set<string>();
+    const dis = new Set<string>();
+    for (const node of nodes.values()) {
+      if (node.skill.id === hoveredSkill.id) continue;
+      if (node.skill.branch === beatenBranch) adv.add(node.skill.id);
+      if (node.skill.branch === beatingBranch) dis.add(node.skill.id);
+    }
+    return { advantageIds: adv, disadvantageIds: dis };
+  }, [hoveredSkill, nodes]);
 
   // ─── Hex ring outlines ───────────────────────────────────────────
   const hexRingPaths = useMemo(() => {
@@ -527,6 +556,14 @@ export function UnifiedSkillGraph({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
 
         {/* Hex ring outlines */}
@@ -658,6 +695,23 @@ export function UnifiedSkillGraph({
               strokeDash = "4 3";
             }
 
+            // Advantage/disadvantage highlighting (overridden by showGlow)
+            const isAdvantage = advantageIds.has(skill.id);
+            const isDisadvantage = disadvantageIds.has(skill.id);
+
+            if (isDisadvantage && !showGlow) {
+              stroke = DISADVANTAGE_COLOR;
+              strokeW = 3;
+              fill = DISADVANTAGE_COLOR;
+              fillOpacity = 0.15;
+            }
+            if (isAdvantage && !showGlow) {
+              stroke = ADVANTAGE_COLOR;
+              strokeW = 3;
+              fill = ADVANTAGE_COLOR;
+              fillOpacity = 0.15;
+            }
+
             const handleHover = (e: React.MouseEvent) => {
               if (isBase) {
                 handleBaseHover(skill.branch, e);
@@ -694,7 +748,7 @@ export function UnifiedSkillGraph({
                   stroke={stroke}
                   strokeWidth={strokeW}
                   strokeDasharray={strokeDash}
-                  filter={showGlow ? "url(#core-glow)" : undefined}
+                  filter={showGlow ? "url(#core-glow)" : isAdvantage ? "url(#gold-glow)" : isDisadvantage ? "url(#purple-glow)" : undefined}
                 />
                 <text
                   x={x}
