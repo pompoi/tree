@@ -291,6 +291,11 @@ export function UnifiedSkillGraph({
     };
   }, [nodes]);
 
+  const legendPos = useMemo(() => {
+    const outerR = hexRadii.length > 0 ? hexRadii[hexRadii.length - 1] : 200;
+    return { x: -(outerR + 20), y: outerR * 0.5 };
+  }, [hexRadii]);
+
   // ─── Handlers ────────────────────────────────────────────────────
   const handleNodeHover = useCallback(
     (skill: Skill, event: React.MouseEvent) => {
@@ -781,6 +786,24 @@ export function UnifiedSkillGraph({
               </g>
             );
           })}
+        </g>
+
+        {/* Advantage Legend */}
+        <g transform={`translate(${legendPos.x}, ${legendPos.y})`} style={{ pointerEvents: "none" }}>
+          <rect x={-8} y={-8} width={120} height={50} rx={6}
+            fill="#030712" fillOpacity={0.8} stroke="#ffffff" strokeWidth={0.5} strokeOpacity={0.2} />
+
+          {/* Gold = Beats */}
+          <polygon points={hexPoints(8, 8, 8)} fill={ADVANTAGE_COLOR} fillOpacity={0.6}
+            stroke={ADVANTAGE_COLOR} strokeWidth={1} />
+          <text x={22} y={12} fill="#fbbf24" fontSize={8} fontWeight="600"
+            dominantBaseline="middle" style={{ userSelect: "none" }}>Beats</text>
+
+          {/* Purple = Vulnerable */}
+          <polygon points={hexPoints(8, 30, 8)} fill={DISADVANTAGE_COLOR} fillOpacity={0.6}
+            stroke={DISADVANTAGE_COLOR} strokeWidth={1} />
+          <text x={22} y={34} fill="#a855f7" fontSize={8} fontWeight="600"
+            dominantBaseline="middle" style={{ userSelect: "none" }}>Vulnerable</text>
         </g>
 
         {/* Confirmed selection outlines — fat hex borders */}
