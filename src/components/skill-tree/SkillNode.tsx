@@ -1,6 +1,5 @@
 import type { SkillNode as SkillNodeType } from "@/types/graph";
 import type { Tier, Branch } from "@/types/skill";
-import { canUnlock } from "@/lib/graph-utils";
 import React from "react";
 
 const BRANCH_COLORS: Record<Branch, string> = {
@@ -10,26 +9,37 @@ const BRANCH_COLORS: Record<Branch, string> = {
 };
 
 const NODE_RADII: Record<Tier, number> = {
-  0: 20,
-  1: 16,
-  2: 14,
-  3: 12,
+  0: 28,
+  1: 22,
+  2: 20,
+  3: 18,
 };
 
-// Maximum characters to fit inside the circle before placing text below
-const MAX_INSIDE_CHARS = 6;
+const MAX_INSIDE_CHARS = 8;
 
 type NodeVisualState = "base" | "unlocked" | "available";
 
 interface SkillNodeProps {
   node: SkillNodeType;
   unlockedSkillIds: Set<string>;
+  highlighted?: boolean;
   onHover: (
     skill: SkillNodeType["skill"],
     event: React.MouseEvent
   ) => void;
   onHoverEnd: () => void;
   onClick: (skillId: string) => void;
+}
+
+function hexPoints(cx: number, cy: number, r: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 180) * (60 * i);
+    pts.push(
+      `${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`
+    );
+  }
+  return pts.join(" ");
 }
 
 function getNodeState(
@@ -44,6 +54,7 @@ function getNodeState(
 export function SkillNode({
   node,
   unlockedSkillIds,
+  highlighted = false,
   onHover,
   onHoverEnd,
   onClick,
@@ -56,7 +67,6 @@ export function SkillNode({
 
   const state = getNodeState(node, unlockedSkillIds);
 
-  // Visual properties based on state
   let fill: string;
   let fillOpacity: number;
   let stroke: string;
@@ -75,7 +85,7 @@ export function SkillNode({
       strokeDasharray = undefined;
       opacity = 1;
       cursor = "default";
-      glowFilter = undefined;
+      glowFilter = "url(#glow)";
       break;
     case "unlocked":
       fill = branchColor;
@@ -99,6 +109,16 @@ export function SkillNode({
       break;
   }
 
+  // When highlighted (prereq chain), boost visibility
+  if (highlighted) {
+    fill = branchColor;
+    fillOpacity = state === "available" ? 0.5 : fillOpacity;
+    stroke = "#ffffff";
+    strokeWidth = 2.5;
+    strokeDasharray = undefined;
+    glowFilter = "url(#glow)";
+  }
+
   const handleMouseEnter = (e: React.MouseEvent) => {
     onHover(skill, e);
   };
@@ -108,7 +128,6 @@ export function SkillNode({
     onClick(skill.id);
   };
 
-  // Determine label placement
   const isShortName = skill.name.length <= MAX_INSIDE_CHARS;
 
   return (
@@ -122,11 +141,9 @@ export function SkillNode({
       role="button"
       tabIndex={state === "base" ? -1 : 0}
     >
-      {/* Main node circle */}
-      <circle
-        cx={x}
-        cy={y}
-        r={r}
+      {/* Hexagonal node */}
+      <polygon
+        points={hexPoints(x, y, r)}
         fill={fill}
         fillOpacity={fillOpacity}
         stroke={stroke}
@@ -135,12 +152,10 @@ export function SkillNode({
         filter={glowFilter}
       />
 
-      {/* Secondary branch indicator -- small dot in corner */}
+      {/* Secondary branch indicator */}
       {hasSecondary && skill.secondaryBranch && (
-        <circle
-          cx={x + r * 0.6}
-          cy={y - r * 0.6}
-          r={r * 0.3}
+        <polygon
+          points={hexPoints(x + r * 0.6, y - r * 0.6, r * 0.3)}
           fill={BRANCH_COLORS[skill.secondaryBranch]}
           stroke="#00000060"
           strokeWidth={0.5}
@@ -155,7 +170,7 @@ export function SkillNode({
           textAnchor="middle"
           dominantBaseline="middle"
           fill="#ffffff"
-          fontSize={7}
+          fontSize={9}
           fontWeight="600"
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
@@ -164,11 +179,11 @@ export function SkillNode({
       ) : (
         <text
           x={x}
-          y={y + r + 7}
+          y={y + r + 8}
           textAnchor="middle"
           dominantBaseline="hanging"
           fill="#ffffffcc"
-          fontSize={8}
+          fontSize={9}
           fontWeight="500"
           style={{ pointerEvents: "none", userSelect: "none" }}
         >

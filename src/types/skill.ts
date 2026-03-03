@@ -19,4 +19,6 @@ export interface Skill {
   prerequisites: string[];
   isBase: boolean;
   tags?: string[];
+  /** Interaction notes for skill matchups */
+  interactionNotes?: string;
 }

@@ -173,7 +173,12 @@ function DecisionLog() {
 
 // ─── BuildPanel ──────────────────────────────────────────────────────────────
 
-export function BuildPanel() {
+interface BuildPanelProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function BuildPanel({ open, onClose }: BuildPanelProps) {
   const activeSlot = useBuildStore((s) => s.activeSlot);
   const builds = useBuildStore((s) => s.builds);
   const resetBuild = useBuildStore((s) => s.resetBuild);
@@ -187,8 +192,26 @@ export function BuildPanel() {
     resetBuild(activeSlot);
   }, [resetBuild, activeSlot]);
 
+  if (!open) return null;
+
   return (
-    <aside className="w-72 flex-shrink-0 bg-gray-950 border-l border-white/10 flex flex-col h-full overflow-hidden">
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-30"
+        onClick={onClose}
+      />
+      <aside className="fixed right-0 top-0 w-72 z-40 bg-gray-950 border-l border-white/10 flex flex-col h-full overflow-hidden shadow-2xl">
+      {/* Close button */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/10">
+        <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Build</span>
+        <button
+          onClick={onClose}
+          className="text-white/40 hover:text-white text-sm"
+        >
+          &times;
+        </button>
+      </div>
       <div className="flex flex-col gap-4 p-4 flex-1 overflow-y-auto">
         {/* Section: Slot picker */}
         <div>
@@ -258,5 +281,6 @@ export function BuildPanel() {
         confirmLabel="Reset"
       />
     </aside>
+    </>
   );
 }

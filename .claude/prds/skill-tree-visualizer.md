@@ -1,7 +1,8 @@
 ---
 name: skill-tree-visualizer
 description: Interactive circular skill tree visualizer with printable cards for a hex-grid fighting game
-status: backlog
+status: superseded
+superseded_by: skill-tree-v2
 created: 2026-03-01T19:37:27Z
 ---
 

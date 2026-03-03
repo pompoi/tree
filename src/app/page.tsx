@@ -1,58 +1,115 @@
 "use client";
 
 import { useState } from "react";
-import { SkillTreeSVG } from "@/components/skill-tree/SkillTreeSVG";
-import { SelectionWheel } from "@/components/skill-tree/SelectionWheel";
+import { UnifiedSkillGraph } from "@/components/skill-tree/UnifiedSkillGraph";
 import { BuildPanel } from "@/components/build/BuildPanel";
 import { CardBar } from "@/components/build/CardBar";
+import { CardPreviewPanel } from "@/components/build/CardPreviewPanel";
+import type { Skill } from "@/types/skill";
 
 type View = "tree" | "wheel";
 
+function RibbonButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+        active
+          ? "bg-white/10 text-white"
+          : "text-white/40 hover:text-white/60"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("tree");
+  const [showBuildPanel, setShowBuildPanel] = useState(false);
+  const [showCards, setShowCards] = useState(true);
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewSkill, setPreviewSkill] = useState<Skill | null>(null);
 
   return (
     <main className="h-dvh bg-gray-950 flex flex-col overflow-hidden">
-      {/* Top section: Tree + Sidebar */}
-      <div className="flex-1 flex min-h-0">
-        {/* Skill Tree / Selection Wheel (takes remaining space) */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* View toggle */}
-          <div className="flex items-center gap-1 px-4 pt-3">
-            <button
-              onClick={() => setView("tree")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                view === "tree"
-                  ? "bg-white/10 text-white"
-                  : "text-white/40 hover:text-white/60 active:text-white/80"
-              }`}
-            >
-              Skill Tree
-            </button>
-            <button
-              onClick={() => setView("wheel")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                view === "wheel"
-                  ? "bg-white/10 text-white"
-                  : "text-white/40 hover:text-white/60 active:text-white/80"
-              }`}
-            >
-              Selection Wheel
-            </button>
-          </div>
+      {/* Header ribbon */}
+      <div className="flex items-center gap-1 px-4 pt-3 pb-1 flex-shrink-0">
+        {/* View toggles (left) */}
+        <RibbonButton
+          active={view === "tree"}
+          onClick={() => setView("tree")}
+        >
+          Skill Tree
+        </RibbonButton>
+        <RibbonButton
+          active={view === "wheel"}
+          onClick={() => setView("wheel")}
+        >
+          Selection Wheel
+        </RibbonButton>
 
-          {/* Active view */}
-          <div className="flex-1 flex items-center justify-center p-4">
-            {view === "tree" ? <SkillTreeSVG /> : <SelectionWheel />}
-          </div>
+        {/* Panel toggles (right) */}
+        <div className="ml-auto flex items-center gap-1">
+          <RibbonButton
+            active={showCards}
+            onClick={() => setShowCards((v) => !v)}
+          >
+            Cards
+          </RibbonButton>
+          <RibbonButton
+            active={showPreview}
+            onClick={() => setShowPreview((v) => !v)}
+          >
+            Preview
+          </RibbonButton>
+          <RibbonButton
+            active={showBuildPanel}
+            onClick={() => setShowBuildPanel((v) => !v)}
+          >
+            Build
+          </RibbonButton>
+        </div>
+      </div>
+
+      {/* Main content: graph + card preview */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        {/* Unified Skill Graph */}
+        <div className="flex-1 min-w-0 flex items-center justify-center p-4">
+          <UnifiedSkillGraph mode={view} onPreviewSkill={setPreviewSkill} />
         </div>
 
-        {/* Sidebar */}
-        <BuildPanel />
+        {/* Right: Card preview panel (desktop) */}
+        {showPreview && (
+          <div className="hidden md:flex w-[280px] flex-shrink-0 border-l border-white/10">
+            <CardPreviewPanel skill={previewSkill} />
+          </div>
+        )}
       </div>
 
       {/* Bottom: Card Bar */}
-      <CardBar />
+      {showCards && <CardBar onPreviewSkill={setPreviewSkill} />}
+
+      {/* Mobile: Card preview below (shown when preview enabled and a card is selected) */}
+      {showPreview && previewSkill && (
+        <div className="md:hidden h-[400px] flex-shrink-0 border-t border-white/10 overflow-auto">
+          <CardPreviewPanel skill={previewSkill} />
+        </div>
+      )}
+
+      {/* Build panel overlay */}
+      <BuildPanel
+        open={showBuildPanel}
+        onClose={() => setShowBuildPanel(false)}
+      />
     </main>
   );
 }
