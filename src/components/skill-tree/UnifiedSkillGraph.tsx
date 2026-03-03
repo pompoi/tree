@@ -35,38 +35,6 @@ const BRANCH_ICONS: Record<Branch, string> = {
 };
 
 const BRANCH_HEX_R = 36;
-const SQRT3 = Math.sqrt(3);
-
-// Branch hexes positioned so corners touch, forming a central triangle
-const CORE_POSITIONS: Record<Branch, { x: number; y: number }> = {
-  attack: { x: 0, y: -(2 * BRANCH_HEX_R * SQRT3) / 3 },
-  movement: { x: BRANCH_HEX_R, y: (BRANCH_HEX_R * SQRT3) / 3 },
-  defend: { x: -BRANCH_HEX_R, y: (BRANCH_HEX_R * SQRT3) / 3 },
-};
-
-// Touch points where adjacent branch hex corners meet
-const TOUCH_AM = { x: BRANCH_HEX_R / 2, y: -(BRANCH_HEX_R * SQRT3) / 6 };
-const TOUCH_AD = { x: -BRANCH_HEX_R / 2, y: -(BRANCH_HEX_R * SQRT3) / 6 };
-const TOUCH_MD = { x: 0, y: (BRANCH_HEX_R * SQRT3) / 3 };
-
-// Central advantage triangle wedges — colored by who BEATS the adjacent branch
-// Edge facing Attack → Defend beats Attack (green)
-// Edge facing Movement → Attack beats Movement (red)
-// Edge facing Defend → Movement beats Defend (cyan)
-const ADVANTAGE_WEDGES: { path: string; color: string }[] = [
-  {
-    path: `M 0,0 L ${TOUCH_AM.x},${TOUCH_AM.y} L ${TOUCH_AD.x},${TOUCH_AD.y} Z`,
-    color: BRANCH_COLORS.defend,
-  },
-  {
-    path: `M 0,0 L ${TOUCH_AM.x},${TOUCH_AM.y} L ${TOUCH_MD.x},${TOUCH_MD.y} Z`,
-    color: BRANCH_COLORS.attack,
-  },
-  {
-    path: `M 0,0 L ${TOUCH_AD.x},${TOUCH_AD.y} L ${TOUCH_MD.x},${TOUCH_MD.y} Z`,
-    color: BRANCH_COLORS.movement,
-  },
-];
 
 const BASE_SKILL_IDS = new Set(["melee-attack", "move", "defend"]);
 
@@ -141,7 +109,6 @@ export function UnifiedSkillGraph({
   const viewBoxStartRef = useRef(DEFAULT_VB);
   const pinchStartDistRef = useRef(0);
 
-  const [hoveredBranch, setHoveredBranch] = useState<Branch | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
@@ -259,29 +226,40 @@ export function UnifiedSkillGraph({
     });
   }, [hexRadii]);
 
-  // ─── Decorative edges: branch hex → base skill ───────────────────
-  const coreEdges = useMemo(() => {
-    const result: {
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      color: string;
-    }[] = [];
-    for (const branch of ["attack", "movement", "defend"] as Branch[]) {
-      const baseId = BASE_SKILLS[branch];
-      const baseNode = nodes.get(baseId);
-      if (!baseNode) continue;
-      const branchPos = CORE_POSITIONS[branch];
-      result.push({
-        x1: branchPos.x,
-        y1: branchPos.y,
-        x2: baseNode.x,
-        y2: baseNode.y,
-        color: BRANCH_COLORS[branch],
-      });
-    }
-    return result;
+  // ─── Advantage wedges (dynamic from base skill positions) ────────
+  const advantageWedges = useMemo(() => {
+    const atkNode = nodes.get("melee-attack");
+    const movNode = nodes.get("move");
+    const defNode = nodes.get("defend");
+    if (!atkNode || !movNode || !defNode) return [];
+
+    const atk = { x: atkNode.x, y: atkNode.y };
+    const mov = { x: movNode.x, y: movNode.y };
+    const def = { x: defNode.x, y: defNode.y };
+
+    const touchAM = { x: (atk.x + mov.x) / 2, y: (atk.y + mov.y) / 2 };
+    const touchAD = { x: (atk.x + def.x) / 2, y: (atk.y + def.y) / 2 };
+    const touchMD = { x: (mov.x + def.x) / 2, y: (mov.y + def.y) / 2 };
+
+    const cx = (atk.x + mov.x + def.x) / 3;
+    const cy = (atk.y + mov.y + def.y) / 3;
+
+    return [
+      { path: `M ${cx},${cy} L ${touchAM.x},${touchAM.y} L ${touchAD.x},${touchAD.y} Z`, color: BRANCH_COLORS.defend },
+      { path: `M ${cx},${cy} L ${touchAM.x},${touchAM.y} L ${touchMD.x},${touchMD.y} Z`, color: BRANCH_COLORS.attack },
+      { path: `M ${cx},${cy} L ${touchAD.x},${touchAD.y} L ${touchMD.x},${touchMD.y} Z`, color: BRANCH_COLORS.movement },
+    ];
+  }, [nodes]);
+
+  const yomiCenter = useMemo(() => {
+    const atkNode = nodes.get("melee-attack");
+    const movNode = nodes.get("move");
+    const defNode = nodes.get("defend");
+    if (!atkNode || !movNode || !defNode) return { x: 0, y: 0 };
+    return {
+      x: (atkNode.x + movNode.x + defNode.x) / 3,
+      y: (atkNode.y + movNode.y + defNode.y) / 3,
+    };
   }, [nodes]);
 
   // ─── Handlers ────────────────────────────────────────────────────
@@ -522,7 +500,6 @@ export function UnifiedSkillGraph({
         onMouseLeave={() => {
           handleMouseUp();
           handleNodeHoverEnd();
-          setHoveredBranch(null);
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -590,7 +567,7 @@ export function UnifiedSkillGraph({
 
         {/* Central advantage triangle — colored wedges showing who beats whom */}
         <g style={{ pointerEvents: "none" }}>
-          {ADVANTAGE_WEDGES.map((wedge, i) => (
+          {advantageWedges.map((wedge, i) => (
             <path
               key={`adv-${i}`}
               d={wedge.path}
@@ -602,8 +579,8 @@ export function UnifiedSkillGraph({
             />
           ))}
           <text
-            x={0}
-            y={2}
+            x={yomiCenter.x}
+            y={yomiCenter.y + 2}
             textAnchor="middle"
             dominantBaseline="middle"
             fill="#ffffff"
@@ -615,69 +592,6 @@ export function UnifiedSkillGraph({
             YOMI
           </text>
         </g>
-
-        {/* Branch hexagons (ATK, MOV, DEF) — interactive with hover glow */}
-        {(["attack", "movement", "defend"] as Branch[]).map((branch) => {
-          const pos = CORE_POSITIONS[branch];
-          const color = BRANCH_COLORS[branch];
-          const icon = BRANCH_ICONS[branch];
-          const isHovered = hoveredBranch === branch;
-
-          return (
-            <g
-              key={`branch-${branch}`}
-              style={{ cursor: "pointer" }}
-              onMouseEnter={() => setHoveredBranch(branch)}
-              onMouseLeave={() => setHoveredBranch(null)}
-            >
-              <polygon
-                points={hexPoints(pos.x, pos.y, BRANCH_HEX_R)}
-                fill={isHovered ? color : "#1a1a2e"}
-                fillOpacity={isHovered ? 0.7 : 0.5}
-                stroke={color}
-                strokeWidth={isHovered ? 2.5 : 1.5}
-                filter={isHovered ? "url(#core-glow)" : undefined}
-              />
-              <text
-                x={pos.x}
-                y={pos.y - 4}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={16}
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {icon}
-              </text>
-              <text
-                x={pos.x}
-                y={pos.y + 14}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={isHovered ? "#ffffff" : color}
-                fontSize={7}
-                fontWeight="700"
-                letterSpacing="0.05em"
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {branch.toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Decorative edges: branch hex → base skill */}
-        {coreEdges.map((edge, i) => (
-          <line
-            key={`core-edge-${i}`}
-            x1={edge.x1}
-            y1={edge.y1}
-            x2={edge.x2}
-            y2={edge.y2}
-            stroke={edge.color}
-            strokeWidth={2}
-            strokeOpacity={0.6}
-          />
-        ))}
 
         {/* Prerequisite edges */}
         <g>

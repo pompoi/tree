@@ -16,7 +16,7 @@ import type { Skill, Branch } from "@/types/skill";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const BASE_RADIUS = 160;
+const BASE_RADIUS = 42;
 const LAYER_SPACING = 90;
 
 const EDGE_PADDING = 0.15; // fraction of edge to pad from each vertex
