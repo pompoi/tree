@@ -609,17 +609,22 @@ export function UnifiedSkillGraph({
 
         {/* Central advantage triangle — colored wedges showing who beats whom */}
         <g style={{ pointerEvents: "none" }}>
-          {advantageWedges.map((wedge, i) => (
-            <path
-              key={`adv-${i}`}
-              d={wedge.path}
-              fill={wedge.color}
-              fillOpacity={0.5}
-              stroke={wedge.color}
-              strokeWidth={0.5}
-              strokeOpacity={0.6}
-            />
-          ))}
+          {advantageWedges.map((wedge, i) => {
+            const isActiveBranch =
+              hoveredSkill !== null &&
+              wedge.color === BRANCH_COLORS[hoveredSkill.branch];
+            return (
+              <path
+                key={`adv-${i}`}
+                d={wedge.path}
+                fill={wedge.color}
+                fillOpacity={isActiveBranch ? 0.8 : 0.5}
+                stroke={wedge.color}
+                strokeWidth={0.5}
+                strokeOpacity={0.6}
+              />
+            );
+          })}
           <text
             x={yomiCenter.x}
             y={yomiCenter.y + 2}
