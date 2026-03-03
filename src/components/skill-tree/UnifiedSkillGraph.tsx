@@ -5,19 +5,20 @@ import { createPortal } from "react-dom";
 import { SKILLS, SKILL_MAP } from "@/data/skills";
 import { HEX_PATTERN_MAP } from "@/data/hex-patterns";
 import { canUnlock } from "@/lib/graph-utils";
-import { computeHexLayout, getHexRadii, hexVertices } from "@/lib/radial-layout";
+import {
+  SKILL_POSITIONS,
+  HEX_R,
+  axialToPixel,
+  hexPoints,
+  getSharedEdge,
+} from "@/lib/hex-grid-layout";
 import { HexCardFull } from "@/components/hex-card/HexCardFull";
-import { SkillEdge } from "./SkillEdge";
 import { useBuildStore } from "@/stores/build-store";
 import type { Skill, Branch } from "@/types/skill";
-import type {
-  SkillNode as SkillNodeType,
-  SkillEdge as SkillEdgeType,
-} from "@/types/graph";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const DEFAULT_VB = { x: -500, y: -500, w: 1000, h: 1000 };
+const DEFAULT_VB = { x: -400, y: -400, w: 800, h: 800 };
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
 const PAN_THRESHOLD = 5;
@@ -34,74 +35,25 @@ const BRANCH_ICONS: Record<Branch, string> = {
   defend: "\u{1F6E1}",
 };
 
-const BRANCH_HEX_R = 36;
-const SQRT3 = Math.sqrt(3);
-
-// Branch hexes positioned so corners touch, forming a central triangle
-const CORE_POSITIONS: Record<Branch, { x: number; y: number }> = {
-  attack: { x: 0, y: -(2 * BRANCH_HEX_R * SQRT3) / 3 },
-  movement: { x: BRANCH_HEX_R, y: (BRANCH_HEX_R * SQRT3) / 3 },
-  defend: { x: -BRANCH_HEX_R, y: (BRANCH_HEX_R * SQRT3) / 3 },
+const BEATS: Record<Branch, Branch> = {
+  attack: "movement",
+  movement: "defend",
+  defend: "attack",
+};
+const LOSES_TO: Record<Branch, Branch> = {
+  attack: "defend",
+  movement: "attack",
+  defend: "movement",
 };
 
-// Touch points where adjacent branch hex corners meet
-const TOUCH_AM = { x: BRANCH_HEX_R / 2, y: -(BRANCH_HEX_R * SQRT3) / 6 };
-const TOUCH_AD = { x: -BRANCH_HEX_R / 2, y: -(BRANCH_HEX_R * SQRT3) / 6 };
-const TOUCH_MD = { x: 0, y: (BRANCH_HEX_R * SQRT3) / 3 };
-
-// Central advantage triangle wedges — colored by who BEATS the adjacent branch
-// Edge facing Attack → Defend beats Attack (green)
-// Edge facing Movement → Attack beats Movement (red)
-// Edge facing Defend → Movement beats Defend (cyan)
-const ADVANTAGE_WEDGES: { path: string; color: string }[] = [
-  {
-    path: `M 0,0 L ${TOUCH_AM.x},${TOUCH_AM.y} L ${TOUCH_AD.x},${TOUCH_AD.y} Z`,
-    color: BRANCH_COLORS.defend,
-  },
-  {
-    path: `M 0,0 L ${TOUCH_AM.x},${TOUCH_AM.y} L ${TOUCH_MD.x},${TOUCH_MD.y} Z`,
-    color: BRANCH_COLORS.attack,
-  },
-  {
-    path: `M 0,0 L ${TOUCH_AD.x},${TOUCH_AD.y} L ${TOUCH_MD.x},${TOUCH_MD.y} Z`,
-    color: BRANCH_COLORS.movement,
-  },
-];
-
-const BASE_SKILL_IDS = new Set(["melee-attack", "move", "defend"]);
-
-const BASE_SKILLS: Record<Branch, string> = {
-  attack: "melee-attack",
-  movement: "move",
-  defend: "defend",
-};
-
-const BRANCH_LABELS: {
-  label: string;
-  color: string;
-  edgeIdx: number;
-}[] = [
-  { label: "ATTACK", color: "#ef4444", edgeIdx: 0 },
-  { label: "MOVEMENT", color: "#06b6d4", edgeIdx: 2 },
-  { label: "DEFEND", color: "#22c55e", edgeIdx: 4 },
-];
+const ADVANTAGE_COLOR = "#fbbf24"; // gold
+const DISADVANTAGE_COLOR = "#a855f7"; // purple
 
 const CARD_W = 240;
 const CARD_H = 360;
 const CARD_OFFSET = 20;
 
-// ─── SVG Helpers ────────────────────────────────────────────────────────────
-
-function hexPoints(cx: number, cy: number, r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 180) * (60 * i);
-    pts.push(
-      `${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`
-    );
-  }
-  return pts.join(" ");
-}
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Walk up the prerequisite chain and collect all ancestor IDs. */
 function getPrereqChain(skillId: string): Set<string> {
@@ -120,10 +72,32 @@ function getPrereqChain(skillId: string): Set<string> {
   return chain;
 }
 
+/**
+ * Collect all prerequisite edges (pairs) in the chain of a skill.
+ * Returns edges as [parentId, childId] tuples.
+ */
+function getPrereqEdges(skillId: string): [string, string][] {
+  const edges: [string, string][] = [];
+  const visited = new Set<string>();
+
+  function walk(id: string) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const skill = SKILL_MAP.get(id);
+    if (!skill) return;
+    for (const pid of skill.prerequisites) {
+      edges.push([pid, id]);
+      walk(pid);
+    }
+  }
+  walk(skillId);
+  return edges;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 interface UnifiedSkillGraphProps {
-  mode: "tree" | "wheel";
+  mode: "build" | "play";
   onPreviewSkill: (skill: Skill | null) => void;
 }
 
@@ -141,7 +115,6 @@ export function UnifiedSkillGraph({
   const viewBoxStartRef = useRef(DEFAULT_VB);
   const pinchStartDistRef = useRef(0);
 
-  const [hoveredBranch, setHoveredBranch] = useState<Branch | null>(null);
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
@@ -165,56 +138,34 @@ export function UnifiedSkillGraph({
     [activeBuild?.unlockedSkillIds]
   );
 
-  // ─── Visible skills based on mode ────────────────────────────────
-  const { nodes, edges, hexRadii } = useMemo(() => {
-    const visibleSkills: Skill[] = [];
-    const visibleIds = new Set<string>();
+  // ─── Visible skills + pixel positions ──────────────────────────────
+  const visibleSkills = useMemo(() => {
+    const result: (Skill & { px: number; py: number })[] = [];
 
     for (const skill of SKILLS) {
-      if (mode === "wheel") {
-        // Wheel: only unlocked skills (for reviewing current build)
-        if (unlockedSet.has(skill.id)) {
-          visibleSkills.push(skill);
-          visibleIds.add(skill.id);
-        }
-      } else {
-        // Tree: unlocked + unlockable (for planning builds)
-        if (unlockedSet.has(skill.id) || canUnlock(skill.id, unlockedSet)) {
-          visibleSkills.push(skill);
-          visibleIds.add(skill.id);
-        }
-      }
-    }
-
-    const positions = computeHexLayout(visibleSkills);
-    const radii = getHexRadii(positions);
-
-    const nodeMap = new Map<string, SkillNodeType>();
-    for (const skill of visibleSkills) {
-      const pos = positions.get(skill.id);
+      const pos = SKILL_POSITIONS[skill.id];
       if (!pos) continue;
-      nodeMap.set(skill.id, {
-        skill,
-        angle: 0,
-        radius: 0,
-        x: pos.x,
-        y: pos.y,
-      });
-    }
 
-    const edgeList: SkillEdgeType[] = [];
-    for (const skill of visibleSkills) {
-      for (const prereqId of skill.prerequisites) {
-        if (visibleIds.has(prereqId)) {
-          edgeList.push({ from: prereqId, to: skill.id });
-        }
+      if (mode === "play") {
+        // Play: only unlocked skills (base skills always shown)
+        if (!skill.isBase && !unlockedSet.has(skill.id)) continue;
+      } else {
+        // Build: unlocked + unlockable
+        if (!skill.isBase && !unlockedSet.has(skill.id) && !canUnlock(skill.id, unlockedSet)) continue;
       }
-    }
 
-    return { nodes: nodeMap, edges: edgeList, hexRadii: radii };
+      const { x, y } = axialToPixel(pos.q, pos.r);
+      result.push({ ...skill, px: x, py: y });
+    }
+    return result;
   }, [unlockedSet, mode]);
 
-  // ─── Highlighted IDs (prereq chain of hovered or selected skill) ──
+  const visibleIds = useMemo(
+    () => new Set(visibleSkills.map((s) => s.id)),
+    [visibleSkills]
+  );
+
+  // ─── Highlighted IDs (prereq chain of hovered or selected) ─────────
   const highlightedIds = useMemo(() => {
     const ids = new Set<string>();
     const activeId = hoveredSkill?.id ?? selectedSkillId;
@@ -227,64 +178,114 @@ export function UnifiedSkillGraph({
     return ids;
   }, [hoveredSkill, selectedSkillId]);
 
-  // ─── Hex ring outlines ───────────────────────────────────────────
-  const hexRingPaths = useMemo(() => {
-    return hexRadii.map((r) => {
-      const verts = hexVertices(r);
-      const d = verts
-        .map((v, i) => `${i === 0 ? "M" : "L"} ${v.x} ${v.y}`)
-        .join(" ");
-      return d + " Z";
-    });
-  }, [hexRadii]);
+  // ─── Prereq shared edges to highlight ──────────────────────────────
+  const highlightEdges = useMemo(() => {
+    const activeId = hoveredSkill?.id ?? selectedSkillId;
+    if (!activeId) return [];
 
-  // ─── Branch label positions ──────────────────────────────────────
-  const labelPositions = useMemo(() => {
-    const outerR =
-      hexRadii.length > 0 ? hexRadii[hexRadii.length - 1] + 30 : 200;
-    const verts = hexVertices(outerR);
+    const pairs = getPrereqEdges(activeId);
+    const edges: { x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
 
-    return BRANCH_LABELS.map(({ label, color, edgeIdx }) => {
-      const v1 = verts[edgeIdx];
-      const v2 = verts[(edgeIdx + 1) % 6];
-      const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-      const dist = Math.sqrt(mid.x * mid.x + mid.y * mid.y);
-      const push = dist > 0 ? 20 / dist : 0;
-      return {
-        label,
+    for (const [parentId, childId] of pairs) {
+      if (!visibleIds.has(parentId) || !visibleIds.has(childId)) continue;
+      const parentPos = SKILL_POSITIONS[parentId];
+      const childPos = SKILL_POSITIONS[childId];
+      if (!parentPos || !childPos) continue;
+
+      const shared = getSharedEdge(parentPos, childPos);
+      if (!shared) continue;
+
+      const childSkill = SKILL_MAP.get(childId);
+      const color = childSkill ? BRANCH_COLORS[childSkill.branch] : "#ffffff";
+      edges.push({
+        x1: shared[0].x,
+        y1: shared[0].y,
+        x2: shared[1].x,
+        y2: shared[1].y,
         color,
-        x: mid.x + mid.x * push,
-        y: mid.y + mid.y * push,
-      };
-    });
-  }, [hexRadii]);
-
-  // ─── Decorative edges: branch hex → base skill ───────────────────
-  const coreEdges = useMemo(() => {
-    const result: {
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      color: string;
-    }[] = [];
-    for (const branch of ["attack", "movement", "defend"] as Branch[]) {
-      const baseId = BASE_SKILLS[branch];
-      const baseNode = nodes.get(baseId);
-      if (!baseNode) continue;
-      const branchPos = CORE_POSITIONS[branch];
-      result.push({
-        x1: branchPos.x,
-        y1: branchPos.y,
-        x2: baseNode.x,
-        y2: baseNode.y,
-        color: BRANCH_COLORS[branch],
       });
     }
-    return result;
-  }, [nodes]);
+    return edges;
+  }, [hoveredSkill, selectedSkillId, visibleIds]);
 
-  // ─── Handlers ────────────────────────────────────────────────────
+  // ─── Advantage/disadvantage sets (YOMI highlighting) ───────────────
+  const { advantageIds, disadvantageIds } = useMemo(() => {
+    if (!hoveredSkill)
+      return {
+        advantageIds: new Set<string>(),
+        disadvantageIds: new Set<string>(),
+      };
+    const beatenBranch = BEATS[hoveredSkill.branch];
+    const beatingBranch = LOSES_TO[hoveredSkill.branch];
+    const adv = new Set<string>();
+    const dis = new Set<string>();
+    for (const skill of visibleSkills) {
+      if (skill.id === hoveredSkill.id) continue;
+      if (skill.branch === beatenBranch) adv.add(skill.id);
+      if (skill.branch === beatingBranch) dis.add(skill.id);
+    }
+    return { advantageIds: adv, disadvantageIds: dis };
+  }, [hoveredSkill, visibleSkills]);
+
+  // ─── YOMI advantage wedges between base skills ─────────────────────
+  const advantageWedges = useMemo(() => {
+    const atkPos = SKILL_POSITIONS["melee-attack"];
+    const movPos = SKILL_POSITIONS["move"];
+    const defPos = SKILL_POSITIONS["defend"];
+    if (!atkPos || !movPos || !defPos) return [];
+
+    const atk = axialToPixel(atkPos.q, atkPos.r);
+    const mov = axialToPixel(movPos.q, movPos.r);
+    const def = axialToPixel(defPos.q, defPos.r);
+
+    const touchAM = { x: (atk.x + mov.x) / 2, y: (atk.y + mov.y) / 2 };
+    const touchAD = { x: (atk.x + def.x) / 2, y: (atk.y + def.y) / 2 };
+    const touchMD = { x: (mov.x + def.x) / 2, y: (mov.y + def.y) / 2 };
+
+    const cx = (atk.x + mov.x + def.x) / 3;
+    const cy = (atk.y + mov.y + def.y) / 3;
+
+    return [
+      {
+        path: `M ${cx},${cy} L ${touchAM.x},${touchAM.y} L ${touchAD.x},${touchAD.y} Z`,
+        color: BRANCH_COLORS.defend,
+      },
+      {
+        path: `M ${cx},${cy} L ${touchAM.x},${touchAM.y} L ${touchMD.x},${touchMD.y} Z`,
+        color: BRANCH_COLORS.attack,
+      },
+      {
+        path: `M ${cx},${cy} L ${touchAD.x},${touchAD.y} L ${touchMD.x},${touchMD.y} Z`,
+        color: BRANCH_COLORS.movement,
+      },
+    ];
+  }, []);
+
+  const yomiCenter = useMemo(() => {
+    const atkPos = SKILL_POSITIONS["melee-attack"];
+    const movPos = SKILL_POSITIONS["move"];
+    const defPos = SKILL_POSITIONS["defend"];
+    if (!atkPos || !movPos || !defPos) return { x: 0, y: 0 };
+    const atk = axialToPixel(atkPos.q, atkPos.r);
+    const mov = axialToPixel(movPos.q, movPos.r);
+    const def = axialToPixel(defPos.q, defPos.r);
+    return {
+      x: (atk.x + mov.x + def.x) / 3,
+      y: (atk.y + mov.y + def.y) / 3,
+    };
+  }, []);
+
+  // ─── Legend position ───────────────────────────────────────────────
+  const legendPos = useMemo(() => {
+    let maxDist = 200;
+    for (const skill of visibleSkills) {
+      const d = Math.sqrt(skill.px * skill.px + skill.py * skill.py);
+      if (d > maxDist) maxDist = d;
+    }
+    return { x: -(maxDist + 40), y: maxDist * 0.3 };
+  }, [visibleSkills]);
+
+  // ─── Handlers ─────────────────────────────────────────────────────
   const handleNodeHover = useCallback(
     (skill: Skill, event: React.MouseEvent) => {
       setHoveredSkill(skill);
@@ -300,21 +301,27 @@ export function UnifiedSkillGraph({
   }, [onPreviewSkill, selectedSkillId]);
 
   const handleNodeClick = useCallback(
-    (skillId: string) => {
-      // When confirmed, don't change selection — only hover for details
+    (skill: Skill) => {
+      if (hasPannedRef.current) return;
       if (isConfirmed) return;
 
-      // Toggle selection for persistent highlight
-      setSelectedSkillId((prev) => (prev === skillId ? null : skillId));
-
-      // Toggle unlock/lock
-      if (unlockedSet.has(skillId)) {
-        lockSkill(skillId);
+      if (mode === "play") {
+        // Play mode: select one skill as your action
+        if (!unlockedSet.has(skill.id) && !skill.isBase) return;
+        setSelectedSkillId((prev) => (prev === skill.id ? null : skill.id));
+        onPreviewSkill(skill);
       } else {
-        unlockSkill(skillId);
+        // Build mode: toggle unlock/lock
+        if (skill.isBase) return;
+        setSelectedSkillId((prev) => (prev === skill.id ? null : skill.id));
+        if (unlockedSet.has(skill.id)) {
+          lockSkill(skill.id);
+        } else {
+          unlockSkill(skill.id);
+        }
       }
     },
-    [unlockedSet, unlockSkill, lockSkill, isConfirmed]
+    [unlockedSet, unlockSkill, lockSkill, isConfirmed, mode, onPreviewSkill]
   );
 
   const handleConfirm = useCallback(() => {
@@ -328,26 +335,7 @@ export function UnifiedSkillGraph({
     }
   }, [isConfirmed, highlightedIds]);
 
-  // Base skill hover/click (rendered as branch-hex-style)
-  const handleBaseHover = useCallback(
-    (branch: Branch, event: React.MouseEvent) => {
-      const baseId = BASE_SKILLS[branch];
-      const skill = SKILL_MAP.get(baseId);
-      if (skill) {
-        setHoveredSkill(skill);
-        setHoverPos({ x: event.clientX, y: event.clientY });
-        onPreviewSkill(skill);
-      }
-    },
-    [onPreviewSkill]
-  );
-
-  const handleBaseHoverEnd = useCallback(() => {
-    setHoveredSkill(null);
-    if (!selectedSkillId) onPreviewSkill(null);
-  }, [onPreviewSkill, selectedSkillId]);
-
-  // ─── Pan logic ──────────────────────────────────────────────────
+  // ─── Pan logic ────────────────────────────────────────────────────
   const applyPan = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -484,7 +472,7 @@ export function UnifiedSkillGraph({
     setViewBox(DEFAULT_VB);
   }, []);
 
-  // ─── Floating card position (clamped to viewport) ────────────────
+  // ─── Floating card position ────────────────────────────────────────
   const cardPos = useMemo(() => {
     if (!hoveredSkill) return { left: 0, top: 0 };
     const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
@@ -502,7 +490,7 @@ export function UnifiedSkillGraph({
     return { left, top };
   }, [hoveredSkill, hoverPos]);
 
-  // ─── Render ──────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────
   return (
     <div className="relative w-full flex items-center justify-center">
       <svg
@@ -522,7 +510,6 @@ export function UnifiedSkillGraph({
         onMouseLeave={() => {
           handleMouseUp();
           handleNodeHoverEnd();
-          setHoveredBranch(null);
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -537,14 +524,21 @@ export function UnifiedSkillGraph({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
           <filter
-            id="core-glow"
+            id="purple-glow"
             x="-50%"
             y="-50%"
             width="200%"
             height="200%"
           >
-            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -552,58 +546,27 @@ export function UnifiedSkillGraph({
           </filter>
         </defs>
 
-        {/* Hex ring outlines */}
-        <g>
-          {hexRingPaths.map((d, i) => (
-            <path
-              key={i}
-              d={d}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth={0.8}
-              opacity={0.1}
-              strokeDasharray="6 4"
-            />
-          ))}
-        </g>
-
-        {/* Branch labels */}
-        <g>
-          {labelPositions.map(({ label, color, x, y }) => (
-            <text
-              key={label}
-              x={x}
-              y={y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fill={color}
-              fontSize={11}
-              fontWeight="600"
-              letterSpacing="0.08em"
-              opacity={0.8}
-              style={{ pointerEvents: "none", userSelect: "none" }}
-            >
-              {label}
-            </text>
-          ))}
-        </g>
-
-        {/* Central advantage triangle — colored wedges showing who beats whom */}
+        {/* YOMI advantage wedges between base skills */}
         <g style={{ pointerEvents: "none" }}>
-          {ADVANTAGE_WEDGES.map((wedge, i) => (
-            <path
-              key={`adv-${i}`}
-              d={wedge.path}
-              fill={wedge.color}
-              fillOpacity={0.5}
-              stroke={wedge.color}
-              strokeWidth={0.5}
-              strokeOpacity={0.6}
-            />
-          ))}
+          {advantageWedges.map((wedge, i) => {
+            const isActiveBranch =
+              hoveredSkill !== null &&
+              wedge.color === BRANCH_COLORS[hoveredSkill.branch];
+            return (
+              <path
+                key={`adv-${i}`}
+                d={wedge.path}
+                fill={wedge.color}
+                fillOpacity={isActiveBranch ? 0.8 : 0.5}
+                stroke={wedge.color}
+                strokeWidth={0.5}
+                strokeOpacity={0.6}
+              />
+            );
+          })}
           <text
-            x={0}
-            y={2}
+            x={yomiCenter.x}
+            y={yomiCenter.y + 2}
             textAnchor="middle"
             dominantBaseline="middle"
             fill="#ffffff"
@@ -616,175 +579,121 @@ export function UnifiedSkillGraph({
           </text>
         </g>
 
-        {/* Branch hexagons (ATK, MOV, DEF) — interactive with hover glow */}
-        {(["attack", "movement", "defend"] as Branch[]).map((branch) => {
-          const pos = CORE_POSITIONS[branch];
-          const color = BRANCH_COLORS[branch];
-          const icon = BRANCH_ICONS[branch];
-          const isHovered = hoveredBranch === branch;
-
-          return (
-            <g
-              key={`branch-${branch}`}
-              style={{ cursor: "pointer" }}
-              onMouseEnter={() => setHoveredBranch(branch)}
-              onMouseLeave={() => setHoveredBranch(null)}
-            >
-              <polygon
-                points={hexPoints(pos.x, pos.y, BRANCH_HEX_R)}
-                fill={isHovered ? color : "#1a1a2e"}
-                fillOpacity={isHovered ? 0.7 : 0.5}
-                stroke={color}
-                strokeWidth={isHovered ? 2.5 : 1.5}
-                filter={isHovered ? "url(#core-glow)" : undefined}
-              />
-              <text
-                x={pos.x}
-                y={pos.y - 4}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={16}
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {icon}
-              </text>
-              <text
-                x={pos.x}
-                y={pos.y + 14}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={isHovered ? "#ffffff" : color}
-                fontSize={7}
-                fontWeight="700"
-                letterSpacing="0.05em"
-                style={{ pointerEvents: "none", userSelect: "none" }}
-              >
-                {branch.toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Decorative edges: branch hex → base skill */}
-        {coreEdges.map((edge, i) => (
-          <line
-            key={`core-edge-${i}`}
-            x1={edge.x1}
-            y1={edge.y1}
-            x2={edge.x2}
-            y2={edge.y2}
-            stroke={edge.color}
-            strokeWidth={2}
-            strokeOpacity={0.6}
-          />
-        ))}
-
-        {/* Prerequisite edges */}
-        <g>
-          {edges.map((edge) => {
-            const fromNode = nodes.get(edge.from);
-            const toNode = nodes.get(edge.to);
-            if (!fromNode || !toNode) return null;
-            return (
-              <SkillEdge
-                key={`${edge.from}->${edge.to}`}
-                fromNode={fromNode}
-                toNode={toNode}
-                unlockedSkillIds={unlockedSet}
-              />
-            );
-          })}
+        {/* Highlighted shared edges (prereq chain) */}
+        <g style={{ pointerEvents: "none" }}>
+          {highlightEdges.map((edge, i) => (
+            <line
+              key={`he-${i}`}
+              x1={edge.x1}
+              y1={edge.y1}
+              x2={edge.x2}
+              y2={edge.y2}
+              stroke={edge.color}
+              strokeWidth={4}
+              strokeOpacity={0.9}
+              strokeLinecap="round"
+            />
+          ))}
         </g>
 
-        {/* All skill nodes — uniform hex style */}
+        {/* All hex skill cells */}
         <g>
-          {Array.from(nodes.values()).map((node) => {
-            const { skill, x, y } = node;
+          {visibleSkills.map((skill) => {
+            const { px: x, py: y } = skill;
             const color = BRANCH_COLORS[skill.branch] ?? "#888888";
             const icon = BRANCH_ICONS[skill.branch] ?? "";
-            const isBase = skill.isBase;
-            const isUnlocked = isBase || unlockedSet.has(skill.id);
+            const isUnlocked = skill.isBase || unlockedSet.has(skill.id);
             const isHovered = hoveredSkill?.id === skill.id;
+            const isSelected = selectedSkillId === skill.id;
             const isHighlighted = highlightedIds.has(skill.id);
-            const showGlow = isHovered || isHighlighted;
+            const showGlow = isHovered || isSelected;
 
-            // In wheel mode: unfilled outline when not unlocked
-            const wheelEmpty = mode === "wheel" && !isUnlocked;
-
+            // Determine visual style
             let fill: string;
             let fillOpacity: number;
             let stroke: string;
             let strokeW: number;
             let strokeDash: string | undefined;
+            let filterAttr: string | undefined;
 
-            if (wheelEmpty && !showGlow) {
-              fill = "transparent";
-              fillOpacity = 0;
-              stroke = color;
-              strokeW = 1.5;
-              strokeDash = "4 3";
-            } else if (showGlow) {
+            if (showGlow) {
               fill = color;
-              fillOpacity = 0.8;
+              fillOpacity = 0.9;
               stroke = "#ffffff";
               strokeW = 2.5;
               strokeDash = undefined;
-            } else if (isUnlocked) {
+              filterAttr = "url(#glow)";
+            } else if (isHighlighted) {
               fill = color;
-              fillOpacity = isBase ? 0.5 : 0.9;
-              stroke = isBase ? color : "#ffffff";
-              strokeW = isBase ? 1.5 : 2;
-              strokeDash = undefined;
-            } else {
-              // Tree mode, not unlocked — available
-              fill = "#1f2937";
               fillOpacity = 0.7;
               stroke = "#ffffff";
+              strokeW = 2;
+              strokeDash = undefined;
+              filterAttr = undefined;
+            } else if (isUnlocked) {
+              fill = color;
+              fillOpacity = skill.isBase ? 0.5 : 0.8;
+              stroke = color;
               strokeW = 1.5;
+              strokeDash = undefined;
+              filterAttr = undefined;
+            } else {
+              // Locked / available in build mode
+              fill = "#1f2937";
+              fillOpacity = 0.6;
+              stroke = color;
+              strokeW = 1;
               strokeDash = "4 3";
+              filterAttr = undefined;
             }
 
-            const handleHover = (e: React.MouseEvent) => {
-              if (isBase) {
-                handleBaseHover(skill.branch, e);
-              } else {
-                handleNodeHover(skill, e);
-              }
-            };
+            // Advantage/disadvantage highlighting (override non-glow states)
+            const isAdvantage = advantageIds.has(skill.id);
+            const isDisadvantage = disadvantageIds.has(skill.id);
 
-            const handleHoverEnd = () => {
-              if (isBase) {
-                handleBaseHoverEnd();
-              } else {
-                handleNodeHoverEnd();
-              }
-            };
+            if (isDisadvantage && !showGlow) {
+              stroke = DISADVANTAGE_COLOR;
+              strokeW = 3;
+              fill = DISADVANTAGE_COLOR;
+              fillOpacity = 0.15;
+              filterAttr = "url(#purple-glow)";
+            }
+            if (isAdvantage && !showGlow) {
+              stroke = ADVANTAGE_COLOR;
+              strokeW = 3;
+              fill = ADVANTAGE_COLOR;
+              fillOpacity = 0.15;
+              filterAttr = "url(#gold-glow)";
+            }
 
-            const handleClick = () => {
-              if (isBase) return;
-              handleNodeClick(skill.id);
-            };
+            // Base skills slightly thicker advantage border
+            if ((isAdvantage || isDisadvantage) && !showGlow && skill.isBase) {
+              strokeW = 3.5;
+            }
 
             return (
               <g
                 key={skill.id}
-                style={{ cursor: isBase ? "default" : "pointer" }}
-                onMouseEnter={handleHover}
-                onMouseLeave={handleHoverEnd}
-                onClick={handleClick}
+                style={{
+                  cursor:
+                    mode === "build" && skill.isBase ? "default" : "pointer",
+                }}
+                onMouseEnter={(e) => handleNodeHover(skill, e)}
+                onMouseLeave={handleNodeHoverEnd}
+                onClick={() => handleNodeClick(skill)}
               >
                 <polygon
-                  points={hexPoints(x, y, BRANCH_HEX_R)}
+                  points={hexPoints(x, y, HEX_R)}
                   fill={fill}
                   fillOpacity={fillOpacity}
                   stroke={stroke}
                   strokeWidth={strokeW}
                   strokeDasharray={strokeDash}
-                  filter={showGlow ? "url(#core-glow)" : undefined}
+                  filter={filterAttr}
                 />
                 <text
                   x={x}
-                  y={y - 4}
+                  y={y - 5}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fontSize={16}
@@ -797,7 +706,7 @@ export function UnifiedSkillGraph({
                   y={y + 14}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill={showGlow ? "#ffffff" : wheelEmpty ? color : "#ffffffcc"}
+                  fill={showGlow || isHighlighted ? "#ffffff" : "#ffffffcc"}
                   fontSize={7}
                   fontWeight="700"
                   letterSpacing="0.05em"
@@ -810,18 +719,77 @@ export function UnifiedSkillGraph({
           })}
         </g>
 
-        {/* Confirmed selection outlines — fat hex borders */}
+        {/* Advantage Legend */}
+        <g
+          transform={`translate(${legendPos.x}, ${legendPos.y})`}
+          style={{ pointerEvents: "none" }}
+        >
+          <rect
+            x={-8}
+            y={-8}
+            width={120}
+            height={50}
+            rx={6}
+            fill="#030712"
+            fillOpacity={0.8}
+            stroke="#ffffff"
+            strokeWidth={0.5}
+            strokeOpacity={0.2}
+          />
+          <polygon
+            points={hexPoints(8, 8, 8)}
+            fill={ADVANTAGE_COLOR}
+            fillOpacity={0.6}
+            stroke={ADVANTAGE_COLOR}
+            strokeWidth={1}
+          />
+          <text
+            x={22}
+            y={12}
+            fill="#fbbf24"
+            fontSize={8}
+            fontWeight="600"
+            dominantBaseline="middle"
+            style={{ userSelect: "none" }}
+          >
+            Beats
+          </text>
+          <polygon
+            points={hexPoints(8, 30, 8)}
+            fill={DISADVANTAGE_COLOR}
+            fillOpacity={0.6}
+            stroke={DISADVANTAGE_COLOR}
+            strokeWidth={1}
+          />
+          <text
+            x={22}
+            y={34}
+            fill="#a855f7"
+            fontSize={8}
+            fontWeight="600"
+            dominantBaseline="middle"
+            style={{ userSelect: "none" }}
+          >
+            Vulnerable
+          </text>
+        </g>
+
+        {/* Confirmed selection outlines */}
         {isConfirmed && (
           <g style={{ pointerEvents: "none" }}>
             {Array.from(confirmedIds).map((id) => {
-              const node = nodes.get(id);
-              if (!node) return null;
-              const r = BRANCH_HEX_R + 4;
-              const color = BRANCH_COLORS[node.skill.branch] ?? "#ffffff";
+              const pos = SKILL_POSITIONS[id];
+              if (!pos) return null;
+              const { x, y } = axialToPixel(pos.q, pos.r);
+              const skill = SKILL_MAP.get(id);
+              const r = HEX_R + 4;
+              const color = skill
+                ? BRANCH_COLORS[skill.branch] ?? "#ffffff"
+                : "#ffffff";
               return (
                 <polygon
                   key={`confirm-${id}`}
-                  points={hexPoints(node.x, node.y, r)}
+                  points={hexPoints(x, y, r)}
                   fill="none"
                   stroke={color}
                   strokeWidth={4}
@@ -835,7 +803,7 @@ export function UnifiedSkillGraph({
       </svg>
 
       {/* Confirm / Reset button */}
-      {(highlightedIds.size > 0 || isConfirmed) && (
+      {mode === "play" && (selectedSkillId || isConfirmed) && (
         <button
           onClick={handleConfirm}
           className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${

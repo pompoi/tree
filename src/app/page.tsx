@@ -7,7 +7,7 @@ import { CardBar } from "@/components/build/CardBar";
 import { CardPreviewPanel } from "@/components/build/CardPreviewPanel";
 import type { Skill } from "@/types/skill";
 
-type View = "tree" | "wheel";
+type View = "build" | "play";
 
 function RibbonButton({
   active,
@@ -33,7 +33,7 @@ function RibbonButton({
 }
 
 export default function Home() {
-  const [view, setView] = useState<View>("tree");
+  const [view, setView] = useState<View>("play");
   const [showBuildPanel, setShowBuildPanel] = useState(false);
   const [showCards, setShowCards] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
@@ -45,16 +45,16 @@ export default function Home() {
       <div className="flex items-center gap-1 px-4 pt-3 pb-1 flex-shrink-0">
         {/* View toggles (left) */}
         <RibbonButton
-          active={view === "tree"}
-          onClick={() => setView("tree")}
+          active={view === "play"}
+          onClick={() => setView("play")}
         >
-          Skill Tree
+          Play
         </RibbonButton>
         <RibbonButton
-          active={view === "wheel"}
-          onClick={() => setView("wheel")}
+          active={view === "build"}
+          onClick={() => setView("build")}
         >
-          Selection Wheel
+          Build
         </RibbonButton>
 
         {/* Panel toggles (right) */}

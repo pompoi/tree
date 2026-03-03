@@ -2,8 +2,8 @@ import type { Skill } from "./skill";
 
 export interface SkillNode {
   skill: Skill;
-  angle: number;
-  radius: number;
+  q: number;
+  r: number;
   x: number;
   y: number;
 }

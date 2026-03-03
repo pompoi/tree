@@ -1,8 +1,9 @@
 ---
 name: skill-tree-v2
-status: open
+status: complete
 created: 2026-03-03T21:41:54Z
-progress: 0%
+completed: 2026-03-03T22:05:00Z
+progress: 100%
 prd: .claude/prds/skill-tree-v2.md
 github: https://github.com/pompoi/tree/issues/10
 synced: 2026-03-03T21:50:00Z
