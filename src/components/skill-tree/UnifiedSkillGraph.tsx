@@ -837,7 +837,7 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
       </div>
 
       {/* Card preview — right side on desktop, below on mobile. Always reserves space. */}
-      <div className="w-full h-[320px] md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-3 overflow-hidden">
+      <div className="w-full h-[180px] md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-2 md:p-3 overflow-hidden">
         {mounted && activeSkill && activePattern ? (
           <HexCardFull
             skill={activeSkill}
