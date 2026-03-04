@@ -194,8 +194,12 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
   const pinchStartDistRef = useRef(0);
 
   const [hoveredSkill, setHoveredSkill] = useState<Skill | null>(null);
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const selectedSkillId = useBuildStore((s) => s.selectedSkillId);
+  const selectSkill = useBuildStore((s) => s.selectSkill);
+  const confirmedSkillIds = useBuildStore((s) => s.confirmedSkillIds);
+  const setConfirmedSkills = useBuildStore((s) => s.setConfirmedSkills);
+  const resetPlayState = useBuildStore((s) => s.resetPlayState);
+  const confirmedIds = useMemo(() => new Set(confirmedSkillIds), [confirmedSkillIds]);
   const isConfirmed = confirmedIds.size > 0;
   const [mounted, setMounted] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -207,8 +211,8 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
 
   // Clear selection when switching modes
   useEffect(() => {
-    setSelectedSkillId(null);
-  }, [mode]);
+    resetPlayState();
+  }, [mode, resetPlayState]);
 
   // Q/E keyboard rotation
   useEffect(() => {
@@ -384,14 +388,14 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
 
       if (mode === "play") {
         if (!unlockedSet.has(skill.id) && !skill.isBase) return;
-        setSelectedSkillId((prev) => (prev === skill.id ? null : skill.id));
+        selectSkill(selectedSkillId === skill.id ? null : skill.id);
       } else {
         if (skill.isBase) return;
 
         if (unlockedSet.has(skill.id)) {
           // Deselect and lock
           lockSkill(skill.id);
-          setSelectedSkillId(null);
+          selectSkill(null);
         } else {
           // Unlock entire prereq chain (parents first by tier), then the skill itself
           const chain = getPrereqChain(skill.id);
@@ -406,21 +410,20 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
           for (const id of toUnlock) {
             unlockSkill(id);
           }
-          setSelectedSkillId(skill.id);
+          selectSkill(skill.id);
         }
       }
     },
-    [unlockedSet, unlockSkill, lockSkill, isConfirmed, mode]
+    [unlockedSet, unlockSkill, lockSkill, selectSkill, selectedSkillId, isConfirmed, mode]
   );
 
   const handleConfirm = useCallback(() => {
     if (isConfirmed) {
-      setConfirmedIds(new Set());
-      setSelectedSkillId(null);
+      resetPlayState();
     } else {
-      setConfirmedIds(new Set(highlightedIds));
+      setConfirmedSkills([...highlightedIds]);
     }
-  }, [isConfirmed, highlightedIds]);
+  }, [isConfirmed, highlightedIds, setConfirmedSkills, resetPlayState]);
 
   // ─── Pan logic ────────────────────────────────────────────────────
   const applyPan = useCallback((clientX: number, clientY: number) => {
@@ -573,9 +576,9 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="relative w-full h-full flex flex-col md:flex-row items-stretch overflow-y-auto md:overflow-hidden">
-      {/* SVG graph — takes remaining space */}
-      <div className="min-h-[70dvh] md:flex-1 md:min-h-0 min-w-0 flex items-center justify-center">
+    <div className="relative w-full h-full flex flex-col md:flex-row items-stretch overflow-hidden">
+      {/* SVG graph — fills available space */}
+      <div className="flex-1 min-h-0 md:flex-1 md:min-h-0 min-w-0 flex items-center justify-center">
         <svg
           ref={svgRef}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
@@ -709,10 +712,18 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                 strokeDash = undefined;
                 filterAttr = undefined;
               } else if (isUnlocked) {
-                fill = color;
-                fillOpacity = skill.isBase ? 0.5 : 0.8;
-                stroke = color;
-                strokeW = 1.5;
+                if (mode === "play") {
+                  // Play mode: hollow by default, filled only when active
+                  fill = "transparent";
+                  fillOpacity = 1;
+                  stroke = color;
+                  strokeW = 1.5;
+                } else {
+                  fill = color;
+                  fillOpacity = skill.isBase ? 0.5 : 0.8;
+                  stroke = color;
+                  strokeW = 1.5;
+                }
                 strokeDash = undefined;
                 filterAttr = undefined;
               } else {
@@ -821,11 +832,11 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
           </g>{/* end rotation group */}
         </svg>
 
-        {/* Confirm / Reset button */}
+        {/* Confirm / Reset button — desktop only (mobile uses ActionBar) */}
         {mode === "play" && (selectedSkillId || isConfirmed) && (
           <button
             onClick={handleConfirm}
-            className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
+            className={`hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
               isConfirmed
                 ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
                 : "bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg backdrop-blur-sm"
@@ -836,8 +847,8 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
         )}
       </div>
 
-      {/* Card preview — right side on desktop, below on mobile. Always reserves space. */}
-      <div className="w-full min-h-[50dvh] md:min-h-0 md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-3 overflow-hidden">
+      {/* Card preview — desktop only (mobile uses ActionBar) */}
+      <div className="hidden md:flex md:w-[400px] md:h-auto flex-shrink-0 items-center justify-center p-3 overflow-hidden">
         {mounted && activeSkill && activePattern ? (
           <HexCardFull
             skill={activeSkill}

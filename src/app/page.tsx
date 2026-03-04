@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UnifiedSkillGraph } from "@/components/skill-tree/UnifiedSkillGraph";
+import { ActionBar } from "@/components/skill-tree/ActionBar";
 import { BuildPanel } from "@/components/build/BuildPanel";
 
 type View = "build" | "play";
@@ -63,6 +64,11 @@ export default function Home() {
       {/* Main content: graph fills remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden p-2">
         <UnifiedSkillGraph mode={view} />
+      </div>
+
+      {/* Mobile action bar */}
+      <div className="md:hidden flex-shrink-0">
+        <ActionBar mode={view} />
       </div>
 
       {/* Build panel overlay */}

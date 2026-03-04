@@ -60,12 +60,19 @@ interface BuildState {
   builds: PlayerBuild[];
   hoveredSkillId: string | null;
 
+  // Play-mode transient state (not persisted)
+  selectedSkillId: string | null;
+  confirmedSkillIds: string[];
+
   setActiveSlot: (index: number) => void;
   renameBuild: (index: number, name: string) => void;
   unlockSkill: (skillId: string) => void;
   lockSkill: (skillId: string) => void;
   resetBuild: (index: number) => void;
   setHoveredSkill: (skillId: string | null) => void;
+  selectSkill: (id: string | null) => void;
+  setConfirmedSkills: (ids: string[]) => void;
+  resetPlayState: () => void;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -76,6 +83,8 @@ export const useBuildStore = create<BuildState>()(
       activeSlot: 0,
       builds: createDefaultBuilds(),
       hoveredSkillId: null,
+      selectedSkillId: null,
+      confirmedSkillIds: [],
 
       setActiveSlot: (index: number) => {
         set({ activeSlot: index });
@@ -192,6 +201,18 @@ export const useBuildStore = create<BuildState>()(
 
       setHoveredSkill: (skillId: string | null) => {
         set({ hoveredSkillId: skillId });
+      },
+
+      selectSkill: (id: string | null) => {
+        set({ selectedSkillId: id });
+      },
+
+      setConfirmedSkills: (ids: string[]) => {
+        set({ confirmedSkillIds: ids });
+      },
+
+      resetPlayState: () => {
+        set({ selectedSkillId: null, confirmedSkillIds: [] });
       },
     }),
     {
