@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useCallback, useState, useRef } from "react";
-import { createPortal } from "react-dom";
 import { SKILLS, SKILL_MAP } from "@/data/skills";
 import { HEX_PATTERN_MAP } from "@/data/hex-patterns";
 import { canUnlock } from "@/lib/graph-utils";
@@ -35,23 +34,73 @@ const BRANCH_ICONS: Record<Branch, string> = {
   defend: "\u{1F6E1}",
 };
 
-const BEATS: Record<Branch, Branch> = {
-  attack: "movement",
-  movement: "defend",
-  defend: "attack",
-};
-const LOSES_TO: Record<Branch, Branch> = {
-  attack: "defend",
-  movement: "attack",
-  defend: "movement",
-};
-
 const ADVANTAGE_COLOR = "#fbbf24"; // gold
 const DISADVANTAGE_COLOR = "#a855f7"; // purple
 
-const CARD_W = 240;
-const CARD_H = 360;
-const CARD_OFFSET = 20;
+// Skill-specific matchup interactions (derived from interactionNotes)
+const SKILL_BEATS: Record<string, string[]> = {
+  "power-hit": ["parry", "riposte"],
+  "quick-jab": ["power-hit"],
+  "feint": ["defend", "parry", "brace", "riposte", "deflect", "mirror-guard"],
+  "lunge": ["dash", "withdraw"],
+  "combo-strike": [],
+  "feint-strike": ["defend", "parry", "brace", "riposte", "deflect"],
+  "executioner": [],
+  "whirlwind": [],
+  "defend": ["melee-attack", "quick-jab"],
+  "parry": ["melee-attack", "lunge", "combo-strike", "executioner"],
+  "brace": ["flanking", "charge", "shadow-step", "overrun", "whirlwind"],
+  "sidestep": ["melee-attack", "power-hit", "lunge", "combo-strike", "charge"],
+  "riposte": ["melee-attack", "lunge", "combo-strike"],
+  "deflect": ["quick-jab"],
+  "mirror-guard": [],
+  "fortress": [],
+  "flanking": ["defend", "parry"],
+  "dash": [],
+  "pivot": ["flanking", "feint-strike"],
+  "charge": [],
+  "withdraw": [],
+  "shadow-step": [],
+  "overrun": ["parry"],
+  "phantom-step": [],
+};
+
+const SKILL_LOSES_TO: Record<string, string[]> = {
+  "power-hit": ["defend", "sidestep", "brace"],
+  "quick-jab": ["defend", "deflect", "sidestep"],
+  "feint": ["melee-attack", "power-hit", "quick-jab"],
+  "lunge": ["sidestep", "parry"],
+  "combo-strike": ["parry", "sidestep"],
+  "feint-strike": ["pivot"],
+  "executioner": ["parry"],
+  "whirlwind": ["brace"],
+  "defend": ["feint", "feint-strike", "flanking"],
+  "parry": ["power-hit", "flanking"],
+  "brace": ["feint", "feint-strike"],
+  "sidestep": ["quick-jab"],
+  "riposte": ["power-hit", "feint"],
+  "deflect": ["feint", "feint-strike"],
+  "mirror-guard": ["feint"],
+  "fortress": [],
+  "flanking": ["brace", "pivot"],
+  "dash": ["lunge"],
+  "pivot": ["feint"],
+  "charge": ["brace", "sidestep"],
+  "withdraw": ["lunge"],
+  "shadow-step": ["brace", "anticipate"],
+  "overrun": ["brace"],
+  "phantom-step": [],
+};
+
+// Passive boost skills — hidden in Play mode, their effect shows on base skill cards
+const PASSIVE_BOOST_IDS = new Set(["sharpen", "swift-feet", "iron-skin"]);
+
+// Maps base skill → its passive boost skill
+const BASE_TO_BOOST: Record<string, { id: string; label: string }> = {
+  "melee-attack": { id: "sharpen", label: "+1 Damage (Sharpen)" },
+  "move": { id: "swift-feet", label: "+1 Hex (Swift Feet)" },
+  "defend": { id: "iron-skin", label: "+1 Block (Iron Skin)" },
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -98,13 +147,9 @@ function getPrereqEdges(skillId: string): [string, string][] {
 
 interface UnifiedSkillGraphProps {
   mode: "build" | "play";
-  onPreviewSkill: (skill: Skill | null) => void;
 }
 
-export function UnifiedSkillGraph({
-  mode,
-  onPreviewSkill,
-}: UnifiedSkillGraphProps) {
+export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
   const [viewBox, setViewBox] = useState(DEFAULT_VB);
@@ -119,12 +164,30 @@ export function UnifiedSkillGraph({
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const isConfirmed = confirmedIds.size > 0;
-  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
+  const [rotation, setRotation] = useState(0);
 
   useEffect(() => {
     setMounted(true);
     useBuildStore.persist.rehydrate();
+  }, []);
+
+  // Clear selection when switching modes
+  useEffect(() => {
+    setSelectedSkillId(null);
+  }, [mode]);
+
+  // Q/E keyboard rotation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "q" || e.key === "Q") {
+        setRotation((r) => r - 60);
+      } else if (e.key === "e" || e.key === "E") {
+        setRotation((r) => r + 60);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const builds = useBuildStore((s) => s.builds);
@@ -138,6 +201,9 @@ export function UnifiedSkillGraph({
     [activeBuild?.unlockedSkillIds]
   );
 
+  // The active skill for card display: hovered takes priority, then selected
+  const activeSkill = hoveredSkill ?? (selectedSkillId ? SKILL_MAP.get(selectedSkillId) ?? null : null);
+
   // ─── Visible skills + pixel positions ──────────────────────────────
   const visibleSkills = useMemo(() => {
     const result: (Skill & { px: number; py: number })[] = [];
@@ -147,12 +213,11 @@ export function UnifiedSkillGraph({
       if (!pos) continue;
 
       if (mode === "play") {
-        // Play: only unlocked skills (base skills always shown)
+        // Play: only unlocked skills (base skills always shown), hide passive boosts
+        if (PASSIVE_BOOST_IDS.has(skill.id)) continue;
         if (!skill.isBase && !unlockedSet.has(skill.id)) continue;
-      } else {
-        // Build: unlocked + unlockable
-        if (!skill.isBase && !unlockedSet.has(skill.id) && !canUnlock(skill.id, unlockedSet)) continue;
       }
+      // Build: show ALL skills
 
       const { x, y } = axialToPixel(pos.q, pos.r);
       result.push({ ...skill, px: x, py: y });
@@ -215,17 +280,12 @@ export function UnifiedSkillGraph({
         advantageIds: new Set<string>(),
         disadvantageIds: new Set<string>(),
       };
-    const beatenBranch = BEATS[hoveredSkill.branch];
-    const beatingBranch = LOSES_TO[hoveredSkill.branch];
-    const adv = new Set<string>();
-    const dis = new Set<string>();
-    for (const skill of visibleSkills) {
-      if (skill.id === hoveredSkill.id) continue;
-      if (skill.branch === beatenBranch) adv.add(skill.id);
-      if (skill.branch === beatingBranch) dis.add(skill.id);
-    }
+    const beats = SKILL_BEATS[hoveredSkill.id] ?? [];
+    const losesTo = SKILL_LOSES_TO[hoveredSkill.id] ?? [];
+    const adv = new Set<string>(beats.filter((id) => visibleIds.has(id)));
+    const dis = new Set<string>(losesTo.filter((id) => visibleIds.has(id)));
     return { advantageIds: adv, disadvantageIds: dis };
-  }, [hoveredSkill, visibleSkills]);
+  }, [hoveredSkill, visibleIds]);
 
   // ─── YOMI advantage wedges between base skills ─────────────────────
   const advantageWedges = useMemo(() => {
@@ -275,30 +335,14 @@ export function UnifiedSkillGraph({
     };
   }, []);
 
-  // ─── Legend position ───────────────────────────────────────────────
-  const legendPos = useMemo(() => {
-    let maxDist = 200;
-    for (const skill of visibleSkills) {
-      const d = Math.sqrt(skill.px * skill.px + skill.py * skill.py);
-      if (d > maxDist) maxDist = d;
-    }
-    return { x: -(maxDist + 40), y: maxDist * 0.3 };
-  }, [visibleSkills]);
-
   // ─── Handlers ─────────────────────────────────────────────────────
-  const handleNodeHover = useCallback(
-    (skill: Skill, event: React.MouseEvent) => {
-      setHoveredSkill(skill);
-      setHoverPos({ x: event.clientX, y: event.clientY });
-      onPreviewSkill(skill);
-    },
-    [onPreviewSkill]
-  );
+  const handleNodeHover = useCallback((skill: Skill) => {
+    setHoveredSkill(skill);
+  }, []);
 
   const handleNodeHoverEnd = useCallback(() => {
     setHoveredSkill(null);
-    if (!selectedSkillId) onPreviewSkill(null);
-  }, [onPreviewSkill, selectedSkillId]);
+  }, []);
 
   const handleNodeClick = useCallback(
     (skill: Skill) => {
@@ -306,31 +350,41 @@ export function UnifiedSkillGraph({
       if (isConfirmed) return;
 
       if (mode === "play") {
-        // Play mode: select one skill as your action
         if (!unlockedSet.has(skill.id) && !skill.isBase) return;
         setSelectedSkillId((prev) => (prev === skill.id ? null : skill.id));
-        onPreviewSkill(skill);
       } else {
-        // Build mode: toggle unlock/lock
         if (skill.isBase) return;
-        setSelectedSkillId((prev) => (prev === skill.id ? null : skill.id));
+
         if (unlockedSet.has(skill.id)) {
+          // Deselect and lock
           lockSkill(skill.id);
+          setSelectedSkillId(null);
         } else {
-          unlockSkill(skill.id);
+          // Unlock entire prereq chain (parents first by tier), then the skill itself
+          const chain = getPrereqChain(skill.id);
+          const toUnlock = [...chain, skill.id].filter(
+            (id) => !unlockedSet.has(id) && !SKILL_MAP.get(id)?.isBase
+          );
+          toUnlock.sort((a, b) => {
+            const sa = SKILL_MAP.get(a);
+            const sb = SKILL_MAP.get(b);
+            return (sa?.tier ?? 0) - (sb?.tier ?? 0);
+          });
+          for (const id of toUnlock) {
+            unlockSkill(id);
+          }
+          setSelectedSkillId(skill.id);
         }
       }
     },
-    [unlockedSet, unlockSkill, lockSkill, isConfirmed, mode, onPreviewSkill]
+    [unlockedSet, unlockSkill, lockSkill, isConfirmed, mode]
   );
 
   const handleConfirm = useCallback(() => {
     if (isConfirmed) {
-      // Reset
       setConfirmedIds(new Set());
       setSelectedSkillId(null);
     } else {
-      // Confirm current highlighted selection
       setConfirmedIds(new Set(highlightedIds));
     }
   }, [isConfirmed, highlightedIds]);
@@ -472,370 +526,294 @@ export function UnifiedSkillGraph({
     setViewBox(DEFAULT_VB);
   }, []);
 
-  // ─── Floating card position ────────────────────────────────────────
-  const cardPos = useMemo(() => {
-    if (!hoveredSkill) return { left: 0, top: 0 };
-    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
-    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  // ─── Card pattern and boost info for active skill ──────────────────
+  const activePattern = activeSkill ? HEX_PATTERN_MAP.get(activeSkill.id) : undefined;
 
-    let left = hoverPos.x + CARD_OFFSET;
-    let top = hoverPos.y + CARD_OFFSET;
-
-    if (left + CARD_W > vw - 8) left = hoverPos.x - CARD_W - CARD_OFFSET;
-    if (top + CARD_H > vh - 8) top = hoverPos.y - CARD_H - CARD_OFFSET;
-
-    left = Math.max(8, Math.min(left, vw - CARD_W - 8));
-    top = Math.max(8, Math.min(top, vh - CARD_H - 8));
-
-    return { left, top };
-  }, [hoveredSkill, hoverPos]);
+  // Check if the active base skill has its boost unlocked
+  const activeBoostLabel = useMemo(() => {
+    if (!activeSkill) return undefined;
+    const boost = BASE_TO_BOOST[activeSkill.id];
+    if (!boost) return undefined;
+    if (unlockedSet.has(boost.id)) return boost.label;
+    return undefined;
+  }, [activeSkill, unlockedSet]);
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="relative w-full flex items-center justify-center">
-      <svg
-        ref={svgRef}
-        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-        className="w-full max-w-[860px] h-auto"
-        style={{
-          maxHeight: "calc(100dvh - 160px)",
-          cursor: isPanning ? "grabbing" : "default",
-          touchAction: "none",
-        }}
-        xmlns="http://www.w3.org/2000/svg"
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          handleMouseUp();
-          handleNodeHoverEnd();
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onDoubleClick={handleDoubleClick}
-      >
-        <defs>
-          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter
-            id="purple-glow"
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-          >
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {/* YOMI advantage wedges between base skills */}
-        <g style={{ pointerEvents: "none" }}>
-          {advantageWedges.map((wedge, i) => {
-            const isActiveBranch =
-              hoveredSkill !== null &&
-              wedge.color === BRANCH_COLORS[hoveredSkill.branch];
-            return (
-              <path
-                key={`adv-${i}`}
-                d={wedge.path}
-                fill={wedge.color}
-                fillOpacity={isActiveBranch ? 0.8 : 0.5}
-                stroke={wedge.color}
-                strokeWidth={0.5}
-                strokeOpacity={0.6}
-              />
-            );
-          })}
-          <text
-            x={yomiCenter.x}
-            y={yomiCenter.y + 2}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="#ffffff"
-            fontSize={6}
-            fontWeight="700"
-            opacity={0.7}
-            letterSpacing="0.1em"
-          >
-            YOMI
-          </text>
-        </g>
-
-        {/* Highlighted shared edges (prereq chain) */}
-        <g style={{ pointerEvents: "none" }}>
-          {highlightEdges.map((edge, i) => (
-            <line
-              key={`he-${i}`}
-              x1={edge.x1}
-              y1={edge.y1}
-              x2={edge.x2}
-              y2={edge.y2}
-              stroke={edge.color}
-              strokeWidth={4}
-              strokeOpacity={0.9}
-              strokeLinecap="round"
-            />
-          ))}
-        </g>
-
-        {/* All hex skill cells */}
-        <g>
-          {visibleSkills.map((skill) => {
-            const { px: x, py: y } = skill;
-            const color = BRANCH_COLORS[skill.branch] ?? "#888888";
-            const icon = BRANCH_ICONS[skill.branch] ?? "";
-            const isUnlocked = skill.isBase || unlockedSet.has(skill.id);
-            const isHovered = hoveredSkill?.id === skill.id;
-            const isSelected = selectedSkillId === skill.id;
-            const isHighlighted = highlightedIds.has(skill.id);
-            const showGlow = isHovered || isSelected;
-
-            // Determine visual style
-            let fill: string;
-            let fillOpacity: number;
-            let stroke: string;
-            let strokeW: number;
-            let strokeDash: string | undefined;
-            let filterAttr: string | undefined;
-
-            if (showGlow) {
-              fill = color;
-              fillOpacity = 0.9;
-              stroke = "#ffffff";
-              strokeW = 2.5;
-              strokeDash = undefined;
-              filterAttr = "url(#glow)";
-            } else if (isHighlighted) {
-              fill = color;
-              fillOpacity = 0.7;
-              stroke = "#ffffff";
-              strokeW = 2;
-              strokeDash = undefined;
-              filterAttr = undefined;
-            } else if (isUnlocked) {
-              fill = color;
-              fillOpacity = skill.isBase ? 0.5 : 0.8;
-              stroke = color;
-              strokeW = 1.5;
-              strokeDash = undefined;
-              filterAttr = undefined;
-            } else {
-              // Locked / available in build mode
-              fill = "#1f2937";
-              fillOpacity = 0.6;
-              stroke = color;
-              strokeW = 1;
-              strokeDash = "4 3";
-              filterAttr = undefined;
-            }
-
-            // Advantage/disadvantage highlighting (override non-glow states)
-            const isAdvantage = advantageIds.has(skill.id);
-            const isDisadvantage = disadvantageIds.has(skill.id);
-
-            if (isDisadvantage && !showGlow) {
-              stroke = DISADVANTAGE_COLOR;
-              strokeW = 3;
-              fill = DISADVANTAGE_COLOR;
-              fillOpacity = 0.15;
-              filterAttr = "url(#purple-glow)";
-            }
-            if (isAdvantage && !showGlow) {
-              stroke = ADVANTAGE_COLOR;
-              strokeW = 3;
-              fill = ADVANTAGE_COLOR;
-              fillOpacity = 0.15;
-              filterAttr = "url(#gold-glow)";
-            }
-
-            // Base skills slightly thicker advantage border
-            if ((isAdvantage || isDisadvantage) && !showGlow && skill.isBase) {
-              strokeW = 3.5;
-            }
-
-            return (
-              <g
-                key={skill.id}
-                style={{
-                  cursor:
-                    mode === "build" && skill.isBase ? "default" : "pointer",
-                }}
-                onMouseEnter={(e) => handleNodeHover(skill, e)}
-                onMouseLeave={handleNodeHoverEnd}
-                onClick={() => handleNodeClick(skill)}
-              >
-                <polygon
-                  points={hexPoints(x, y, HEX_R)}
-                  fill={fill}
-                  fillOpacity={fillOpacity}
-                  stroke={stroke}
-                  strokeWidth={strokeW}
-                  strokeDasharray={strokeDash}
-                  filter={filterAttr}
-                />
-                <text
-                  x={x}
-                  y={y - 5}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={16}
-                  style={{ pointerEvents: "none", userSelect: "none" }}
-                >
-                  {icon}
-                </text>
-                <text
-                  x={x}
-                  y={y + 14}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill={showGlow || isHighlighted ? "#ffffff" : "#ffffffcc"}
-                  fontSize={7}
-                  fontWeight="700"
-                  letterSpacing="0.05em"
-                  style={{ pointerEvents: "none", userSelect: "none" }}
-                >
-                  {skill.name}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-
-        {/* Advantage Legend */}
-        <g
-          transform={`translate(${legendPos.x}, ${legendPos.y})`}
-          style={{ pointerEvents: "none" }}
+    <div className="relative w-full h-full flex flex-col md:flex-row items-stretch">
+      {/* SVG graph — takes remaining space */}
+      <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center">
+        <svg
+          ref={svgRef}
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+          className="w-full h-full"
+          style={{
+            maxHeight: "100%",
+            cursor: isPanning ? "grabbing" : "default",
+            touchAction: "none",
+          }}
+          xmlns="http://www.w3.org/2000/svg"
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => {
+            handleMouseUp();
+            handleNodeHoverEnd();
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onDoubleClick={handleDoubleClick}
         >
-          <rect
-            x={-8}
-            y={-8}
-            width={120}
-            height={50}
-            rx={6}
-            fill="#030712"
-            fillOpacity={0.8}
-            stroke="#ffffff"
-            strokeWidth={0.5}
-            strokeOpacity={0.2}
-          />
-          <polygon
-            points={hexPoints(8, 8, 8)}
-            fill={ADVANTAGE_COLOR}
-            fillOpacity={0.6}
-            stroke={ADVANTAGE_COLOR}
-            strokeWidth={1}
-          />
-          <text
-            x={22}
-            y={12}
-            fill="#fbbf24"
-            fontSize={8}
-            fontWeight="600"
-            dominantBaseline="middle"
-            style={{ userSelect: "none" }}
-          >
-            Beats
-          </text>
-          <polygon
-            points={hexPoints(8, 30, 8)}
-            fill={DISADVANTAGE_COLOR}
-            fillOpacity={0.6}
-            stroke={DISADVANTAGE_COLOR}
-            strokeWidth={1}
-          />
-          <text
-            x={22}
-            y={34}
-            fill="#a855f7"
-            fontSize={8}
-            fontWeight="600"
-            dominantBaseline="middle"
-            style={{ userSelect: "none" }}
-          >
-            Vulnerable
-          </text>
-        </g>
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
-        {/* Confirmed selection outlines */}
-        {isConfirmed && (
+          <g transform={`rotate(${rotation}, 0, 0)`} style={{ transition: "transform 0.3s ease" }}>
+          {/* YOMI advantage wedges between base skills */}
           <g style={{ pointerEvents: "none" }}>
-            {Array.from(confirmedIds).map((id) => {
-              const pos = SKILL_POSITIONS[id];
-              if (!pos) return null;
-              const { x, y } = axialToPixel(pos.q, pos.r);
-              const skill = SKILL_MAP.get(id);
-              const r = HEX_R + 4;
-              const color = skill
-                ? BRANCH_COLORS[skill.branch] ?? "#ffffff"
-                : "#ffffff";
+            {advantageWedges.map((wedge, i) => {
+              const isActiveBranch =
+                hoveredSkill !== null &&
+                wedge.color === BRANCH_COLORS[hoveredSkill.branch];
               return (
-                <polygon
-                  key={`confirm-${id}`}
-                  points={hexPoints(x, y, r)}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={4}
-                  strokeOpacity={0.9}
-                  filter="url(#glow)"
+                <path
+                  key={`adv-${i}`}
+                  d={wedge.path}
+                  fill={wedge.color}
+                  fillOpacity={isActiveBranch ? 0.8 : 0.5}
+                  stroke={wedge.color}
+                  strokeWidth={0.5}
+                  strokeOpacity={0.6}
                 />
               );
             })}
-          </g>
-        )}
-      </svg>
-
-      {/* Confirm / Reset button */}
-      {mode === "play" && (selectedSkillId || isConfirmed) && (
-        <button
-          onClick={handleConfirm}
-          className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
-            isConfirmed
-              ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
-              : "bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg backdrop-blur-sm"
-          }`}
-        >
-          {isConfirmed ? "RESET" : "CONFIRM"}
-        </button>
-      )}
-
-      {/* Floating HexCardFull on hover */}
-      {mounted &&
-        hoveredSkill &&
-        (() => {
-          const pattern = HEX_PATTERN_MAP.get(hoveredSkill.id);
-          if (!pattern) return null;
-          return createPortal(
-            <div
-              className="fixed pointer-events-none z-50"
-              style={{ left: cardPos.left, top: cardPos.top }}
+            <text
+              x={yomiCenter.x}
+              y={yomiCenter.y + 2}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="#ffffff"
+              fontSize={6}
+              fontWeight="700"
+              opacity={0.7}
+              letterSpacing="0.1em"
+              transform={`rotate(${-rotation}, ${yomiCenter.x}, ${yomiCenter.y + 2})`}
             >
-              <HexCardFull
-                skill={hoveredSkill}
-                pattern={pattern}
-                animate
+              YOMI
+            </text>
+          </g>
+
+          {/* Highlighted shared edges (prereq chain) */}
+          <g style={{ pointerEvents: "none" }}>
+            {highlightEdges.map((edge, i) => (
+              <line
+                key={`he-${i}`}
+                x1={edge.x1}
+                y1={edge.y1}
+                x2={edge.x2}
+                y2={edge.y2}
+                stroke={edge.color}
+                strokeWidth={4}
+                strokeOpacity={0.9}
+                strokeLinecap="round"
               />
-            </div>,
-            document.body
-          );
-        })()}
+            ))}
+          </g>
+
+          {/* All hex skill cells */}
+          <g>
+            {visibleSkills.map((skill) => {
+              const { px: x, py: y } = skill;
+              const color = BRANCH_COLORS[skill.branch] ?? "#888888";
+              const icon = BRANCH_ICONS[skill.branch] ?? "";
+              const isUnlocked = skill.isBase || unlockedSet.has(skill.id);
+              const isHovered = hoveredSkill?.id === skill.id;
+              const isSelected = selectedSkillId === skill.id;
+              const isHighlighted = highlightedIds.has(skill.id);
+              const showGlow = isHovered || isSelected;
+
+              let fill: string;
+              let fillOpacity: number;
+              let stroke: string;
+              let strokeW: number;
+              let strokeDash: string | undefined;
+              let filterAttr: string | undefined;
+
+              if (showGlow) {
+                fill = color;
+                fillOpacity = 0.9;
+                stroke = "#ffffff";
+                strokeW = 2.5;
+                strokeDash = undefined;
+                filterAttr = "url(#glow)";
+              } else if (isHighlighted) {
+                fill = color;
+                fillOpacity = 0.7;
+                stroke = "#ffffff";
+                strokeW = 2;
+                strokeDash = undefined;
+                filterAttr = undefined;
+              } else if (isUnlocked) {
+                fill = color;
+                fillOpacity = skill.isBase ? 0.5 : 0.8;
+                stroke = color;
+                strokeW = 1.5;
+                strokeDash = undefined;
+                filterAttr = undefined;
+              } else {
+                fill = "#1f2937";
+                fillOpacity = 0.6;
+                stroke = color;
+                strokeW = 1;
+                strokeDash = "4 3";
+                filterAttr = undefined;
+              }
+
+              const isAdvantage = advantageIds.has(skill.id);
+              const isDisadvantage = disadvantageIds.has(skill.id);
+
+              if (isDisadvantage && !showGlow) {
+                stroke = DISADVANTAGE_COLOR;
+                strokeW = 2.5;
+                fill = DISADVANTAGE_COLOR;
+                fillOpacity = 0.35;
+                filterAttr = "url(#purple-glow)";
+              }
+              if (isAdvantage && !showGlow) {
+                stroke = ADVANTAGE_COLOR;
+                strokeW = 2.5;
+                fill = ADVANTAGE_COLOR;
+                fillOpacity = 0.4;
+                filterAttr = "url(#gold-glow)";
+              }
+
+              return (
+                <g
+                  key={skill.id}
+                  style={{
+                    cursor:
+                      mode === "build" && skill.isBase ? "default" : "pointer",
+                  }}
+                  onMouseEnter={() => handleNodeHover(skill)}
+                  onMouseLeave={handleNodeHoverEnd}
+                  onClick={() => handleNodeClick(skill)}
+                >
+                  <polygon
+                    points={hexPoints(x, y, HEX_R)}
+                    fill={fill}
+                    fillOpacity={fillOpacity}
+                    stroke={stroke}
+                    strokeWidth={strokeW}
+                    strokeDasharray={strokeDash}
+                    filter={filterAttr}
+                  />
+                  <text
+                    x={x}
+                    y={y - 5}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontSize={16}
+                    transform={`rotate(${-rotation}, ${x}, ${y - 5})`}
+                    style={{ pointerEvents: "none", userSelect: "none" }}
+                  >
+                    {icon}
+                  </text>
+                  <text
+                    x={x}
+                    y={y + 14}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill={showGlow || isHighlighted ? "#ffffff" : "#ffffffcc"}
+                    fontSize={7}
+                    fontWeight="700"
+                    letterSpacing="0.05em"
+                    transform={`rotate(${-rotation}, ${x}, ${y + 14})`}
+                    style={{ pointerEvents: "none", userSelect: "none" }}
+                  >
+                    {skill.name}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+
+          {/* Confirmed selection outlines */}
+          {isConfirmed && (
+            <g style={{ pointerEvents: "none" }}>
+              {Array.from(confirmedIds).map((id) => {
+                const pos = SKILL_POSITIONS[id];
+                if (!pos) return null;
+                const { x, y } = axialToPixel(pos.q, pos.r);
+                const skill = SKILL_MAP.get(id);
+                const r = HEX_R + 4;
+                const color = skill
+                  ? BRANCH_COLORS[skill.branch] ?? "#ffffff"
+                  : "#ffffff";
+                return (
+                  <polygon
+                    key={`confirm-${id}`}
+                    points={hexPoints(x, y, r)}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={4}
+                    strokeOpacity={0.9}
+                    filter="url(#glow)"
+                  />
+                );
+              })}
+            </g>
+          )}
+          </g>{/* end rotation group */}
+        </svg>
+
+        {/* Confirm / Reset button */}
+        {mode === "play" && (selectedSkillId || isConfirmed) && (
+          <button
+            onClick={handleConfirm}
+            className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
+              isConfirmed
+                ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
+                : "bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg backdrop-blur-sm"
+            }`}
+          >
+            {isConfirmed ? "RESET" : "CONFIRM"}
+          </button>
+        )}
+      </div>
+
+      {/* Card preview — right side on desktop, below on mobile. Always reserves space. */}
+      <div className="w-full h-[320px] md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-3 overflow-hidden">
+        {mounted && activeSkill && activePattern ? (
+          <HexCardFull
+            skill={activeSkill}
+            pattern={activePattern}
+            animate
+            boostLabel={activeBoostLabel}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

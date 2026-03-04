@@ -378,7 +378,7 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["flanking"],
+    prerequisites: ["dash"],
     isBase: false,
     interactionNotes:
       "Aggressive movement. Beaten by Brace and Sidestep.",
@@ -395,7 +395,7 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["dash"],
+    prerequisites: ["pivot"],
     isBase: false,
     interactionNotes:
       "Safe retreat. Loses to Lunge (extended reach). Sets up defense.",
@@ -412,7 +412,7 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["pivot"],
+    prerequisites: ["flanking"],
     isBase: false,
     interactionNotes:
       "Teleport-style repositioning. Countered by Brace and Anticipate (if MOV called).",
@@ -431,7 +431,7 @@ export const SKILLS: Skill[] = [
     statBonus: "damage",
     statBonusAmount: 3,
     cooldown: 0,
-    prerequisites: ["lunge", "combo-strike"],
+    prerequisites: ["feint-strike"],
     isBase: false,
     interactionNotes:
       "Finisher. Requires setup through reads. Can be Parried. Misses if target moves.",
@@ -468,7 +468,7 @@ export const SKILLS: Skill[] = [
     statBonus: "reduction",
     statBonusAmount: 3,
     cooldown: 1,
-    prerequisites: ["riposte", "anticipate"],
+    prerequisites: ["anticipate"],
     isBase: false,
     interactionNotes:
       "Reflection. Useless if opponent doesn't attack. Feint destroys this.",
@@ -504,7 +504,7 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 3,
     cooldown: 1,
-    prerequisites: ["shadow-step", "withdraw"],
+    prerequisites: ["shadow-step"],
     isBase: false,
     interactionNotes:
       "Ultimate mobility. No direct damage. Sets up Flanking or Charge next round.",

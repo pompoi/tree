@@ -26,37 +26,37 @@ export const SKILL_POSITIONS: Record<string, { q: number; r: number }> = {
   "defend": { q: -1, r: 1 },
 
   // Attack branch — spreads north/northwest
-  "power-hit": { q: -1, r: -1 },
-  "quick-jab": { q: 0, r: -2 },
-  "feint": { q: 1, r: -1 },
-  "sharpen": { q: 1, r: -2 },
-  "lunge": { q: -1, r: -2 },
-  "combo-strike": { q: 0, r: -3 },
-  "feint-strike": { q: 2, r: -2 },
-  "executioner": { q: -1, r: -3 }, // dual: lunge + combo-strike
-  "whirlwind": { q: 1, r: -3 },
+  "feint": { q: -1, r: -1 },
+  "power-hit": { q: 0, r: -2 },
+  "quick-jab": { q: 1, r: -2 },
+  "sharpen": { q: 1, r: -1 },
+  "feint-strike": { q: -1, r: -2 },
+  "lunge": { q: 0, r: -3 },
+  "combo-strike": { q: 1, r: -3 },
+  "whirlwind": { q: 1, r: -4 },
+  "executioner": { q: -1, r: -3 },
 
   // Movement branch — spreads east/southeast
-  "swift-feet": { q: 2, r: 0 },
+  "swift-feet": { q: 0, r: 1 },
   "flanking": { q: 2, r: -1 },
   "dash": { q: 1, r: 1 },
-  "pivot": { q: 0, r: 1 },
-  "charge": { q: 3, r: -1 },
-  "withdraw": { q: 1, r: 2 },
-  "shadow-step": { q: 0, r: 2 },
-  "phantom-step": { q: 0, r: 3 }, // dual: shadow-step + withdraw
-  "overrun": { q: 4, r: -1 },
+  "pivot": { q: 2, r: 0 },
+  "shadow-step": { q: 3, r: -1 },
+  "withdraw": { q: 3, r: 0 },
+  "charge": { q: 2, r: 1 },
+  "phantom-step": { q: 4, r: -1 },
+  "overrun": { q: 3, r: 1 },
 
   // Defend branch — spreads west/southwest
-  "iron-skin": { q: -2, r: 2 },
-  "parry": { q: -2, r: 1 },
+  "iron-skin": { q: -1, r: 0 },
+  "sidestep": { q: -2, r: 1 },
   "brace": { q: -1, r: 2 },
-  "sidestep": { q: -1, r: 0 },
-  "riposte": { q: -3, r: 2 },
+  "parry": { q: -2, r: 2 },
+  "anticipate": { q: -3, r: 2 },
   "deflect": { q: -2, r: 3 },
-  "anticipate": { q: -2, r: 0 },
-  "mirror-guard": { q: -3, r: 1 }, // dual: riposte + anticipate
-  "fortress": { q: -3, r: 3 },
+  "riposte": { q: -3, r: 3 },
+  "mirror-guard": { q: -4, r: 3 }, // dual: riposte + anticipate
+  "fortress": { q: -3, r: 4 },
 };
 
 // ─── Axial Directions ────────────────────────────────────────────────────────

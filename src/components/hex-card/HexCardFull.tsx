@@ -54,12 +54,14 @@ interface HexCardFullProps {
   skill: Skill;
   pattern: HexCardPattern;
   animate?: boolean;
+  boostLabel?: string;
 }
 
 export function HexCardFull({
   skill,
   pattern,
   animate = true,
+  boostLabel,
 }: HexCardFullProps) {
   const branchColor = BRANCH_COLORS[skill.branch];
   const gradientFrom = BRANCH_GRADIENT_FROM[skill.branch];
@@ -73,40 +75,59 @@ export function HexCardFull({
 
   return (
     <div
-      className="flex flex-col rounded-xl overflow-hidden border border-white/15 shadow-2xl"
+      className="flex flex-col rounded-xl overflow-hidden border border-white/15 shadow-2xl w-full"
       style={{
-        width: 240,
-        height: 360,
+        aspectRatio: "2 / 3",
+        maxWidth: 380,
         background: "#111827",
       }}
     >
       {/* Header */}
       <div
-        className="px-3 py-2 flex items-center justify-between flex-shrink-0"
+        className="px-4 py-2.5 flex items-center justify-between flex-shrink-0"
         style={{
           background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
         }}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-base flex-shrink-0">{branchIcon}</span>
-          <span className="text-xs font-bold text-white truncate">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg flex-shrink-0">{branchIcon}</span>
+          <span className="text-sm font-bold text-white truncate">
             {skill.name}
           </span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
             {BRANCH_LABELS[skill.branch]}
           </span>
-          <span className="text-[10px] font-bold text-white/80 bg-black/20 px-1.5 py-0.5 rounded">
+          <span className="text-xs font-bold text-white/80 bg-black/20 px-2 py-0.5 rounded">
             {tierBadge}
           </span>
         </div>
       </div>
 
+      {/* Boost indicator */}
+      {boostLabel && (
+        <div
+          className="px-4 py-1.5 flex items-center gap-2 flex-shrink-0"
+          style={{
+            background: `${branchColor}15`,
+            borderBottom: `1px solid ${branchColor}30`,
+          }}
+        >
+          <span
+            className="text-[11px] font-bold uppercase tracking-wider"
+            style={{ color: branchColor }}
+          >
+            Boosted
+          </span>
+          <span className="text-[11px] text-white/70">{boostLabel}</span>
+        </div>
+      )}
+
       {/* Hex Visualization */}
       <div
-        className="flex-shrink-0 flex items-center justify-center px-2"
-        style={{ height: 150, background: "rgba(0,0,0,0.3)" }}
+        className="flex-[2] min-h-0 flex items-center justify-center px-3"
+        style={{ background: "rgba(0,0,0,0.3)" }}
       >
         <HexCardVisualization
           pattern={pattern}
@@ -118,11 +139,11 @@ export function HexCardFull({
       {/* Note */}
       {pattern.note && (
         <div
-          className="px-3 py-1 text-center flex-shrink-0"
+          className="px-4 py-1.5 text-center flex-shrink-0"
           style={{ borderTop: `1px solid ${branchColor}30` }}
         >
           <span
-            className="text-[9px] font-medium italic"
+            className="text-[11px] font-medium italic"
             style={{ color: branchColor }}
           >
             {pattern.note}
@@ -131,46 +152,46 @@ export function HexCardFull({
       )}
 
       {/* Body */}
-      <div className="flex-1 px-3 py-1.5 flex flex-col gap-1 overflow-hidden">
+      <div className="flex-1 px-4 py-2 flex flex-col gap-1.5 overflow-hidden">
         {/* Action & Range row */}
-        <div className="flex items-center gap-2 text-[10px] text-white/60">
-          <span className="bg-white/10 px-1.5 py-0.5 rounded">
+        <div className="flex items-center gap-2 text-xs text-white/60">
+          <span className="bg-white/10 px-2 py-0.5 rounded">
             {ACTION_TYPE_LABELS[skill.actionType]}
           </span>
           {skill.hexRange > 0 && (
-            <span className="bg-white/10 px-1.5 py-0.5 rounded">
+            <span className="bg-white/10 px-2 py-0.5 rounded">
               Range: {skill.hexRange} hex
             </span>
           )}
           {skill.cooldown > 0 && (
-            <span className="bg-white/10 px-1.5 py-0.5 rounded text-yellow-400/80">
+            <span className="bg-white/10 px-2 py-0.5 rounded text-yellow-400/80">
               CD: {skill.cooldown}
             </span>
           )}
         </div>
 
         {/* Description */}
-        <p className="text-[9px] text-white/70 leading-relaxed flex-1">
+        <p className="text-xs text-white/70 leading-relaxed flex-1">
           {skill.description}
         </p>
 
         {/* Interaction notes */}
         {skill.interactionNotes && (
-          <p className="text-[8px] text-white/40 leading-relaxed italic">
+          <p className="text-[11px] text-white/40 leading-relaxed italic">
             {skill.interactionNotes}
           </p>
         )}
       </div>
 
       {/* Footer: Prerequisites */}
-      <div className="px-3 py-1.5 border-t border-white/10 flex-shrink-0">
+      <div className="px-4 py-2 border-t border-white/10 flex-shrink-0">
         {prerequisiteNames.length > 0 ? (
-          <div className="text-[9px] text-white/40">
+          <div className="text-[11px] text-white/40">
             <span className="font-semibold text-white/50">Requires: </span>
             {prerequisiteNames.join(", ")}
           </div>
         ) : (
-          <div className="text-[9px] text-white/30 italic">Base skill</div>
+          <div className="text-[11px] text-white/30 italic">Base skill</div>
         )}
       </div>
     </div>

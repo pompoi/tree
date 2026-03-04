@@ -20,6 +20,8 @@ export interface HexCell {
   label?: string;
   animationDelay?: number;
   animateRotate?: boolean;
+  /** If set, the cell slides from this coordinate to its `coord` position. */
+  animateFrom?: HexCoord;
 }
 
 /** Direction arrow on the card */

@@ -172,6 +172,20 @@ body {
   transform-box: fill-box;
 }
 
+.hex-cell-slide {
+  animation: hex-slide 0.7s ease-in-out both;
+  animation-delay: calc(var(--hex-delay, 0) * 80ms);
+}
+
+@keyframes hex-slide {
+  0% {
+    transform: translate(var(--slide-dx, 0px), var(--slide-dy, 0px));
+  }
+  100% {
+    transform: translate(0px, 0px);
+  }
+}
+
 .hex-player-glow {
   animation:
     hex-appear 0.4s ease-out both,
@@ -182,6 +196,7 @@ body {
   stroke-dasharray: 100;
   animation: arrow-draw 0.6s ease-out 0.35s both;
 }
+
 
 .hex-conditional-dash {
   animation: hex-dash-rotate 1.5s linear infinite;

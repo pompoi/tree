@@ -9,7 +9,7 @@ import type { StatBonus } from "@/types/skill";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SLOT_COUNT = 5;
-const STORAGE_KEY = "skill-tree-builds";
+const STORAGE_KEY = "skill-tree-builds-v2";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -26,8 +26,14 @@ export const HEX_PATTERNS: HexCardPattern[] = [
   {
     skillId: "move",
     cells: [
-      { coord: { q: 0, r: 0 }, type: "player", animateRotate: true },
-      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 0, r: 0 }, type: "empty", animationDelay: 0 },
+      { coord: { q: 1, r: 0 }, type: "empty", animationDelay: 0 },
+      {
+        coord: { q: 1, r: 0 },
+        type: "player",
+        animateFrom: { q: 0, r: 0 },
+        animationDelay: 2,
+      },
     ],
     arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" }],
     note: "Move 1 hex in facing direction",

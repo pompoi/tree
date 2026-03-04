@@ -43,18 +43,34 @@ export function HexCellSVG({
   const fill = cell.type === "player" ? BRANCH_FILLS[branch] : style.fill;
 
   const delay = cell.animationDelay ?? 0;
+  const hasSlide = animate && cell.animateFrom;
   const rotateClass = cell.animateRotate && animate ? "hex-cell-rotate" : "";
-  const animClass = animate && !cell.animateRotate ? "hex-cell-animated" : "";
-  const glowClass = cell.type === "player" && animate && !cell.animateRotate ? " hex-player-glow" : "";
+  const slideClass = hasSlide ? "hex-cell-slide" : "";
+  const animClass = animate && !cell.animateRotate && !hasSlide ? "hex-cell-animated" : "";
+  const glowClass = cell.type === "player" && animate && !cell.animateRotate && !hasSlide ? " hex-player-glow" : "";
   const dashClass =
     cell.type === "conditional" && animate ? " hex-conditional-dash" : "";
 
+  // Compute slide offset: translate from animateFrom → coord
+  let slideDx = 0;
+  let slideDy = 0;
+  if (hasSlide && cell.animateFrom) {
+    const from = hexToPixel(cell.animateFrom, size);
+    slideDx = from.x - x;
+    slideDy = from.y - y;
+  }
+
   return (
     <g
-      className={`${rotateClass}${animClass}${glowClass}`}
+      className={`${rotateClass}${slideClass}${animClass}${glowClass}`}
       style={
         animate
-          ? ({ "--hex-delay": delay, opacity: 0 } as React.CSSProperties)
+          ? ({
+              "--hex-delay": delay,
+              "--slide-dx": `${slideDx}px`,
+              "--slide-dy": `${slideDy}px`,
+              opacity: hasSlide ? 1 : 0,
+            } as React.CSSProperties)
           : undefined
       }
     >
