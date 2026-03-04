@@ -9,8 +9,8 @@ const BORDER_ANGLES = [Math.PI / 3, Math.PI, (5 * Math.PI) / 3];
 
 const BRANCH_LABELS: { angle: number; label: string; color: string }[] = [
   { angle: 0, label: "ATTACK", color: "#ef4444" },
-  { angle: (2 * Math.PI) / 3, label: "MOVEMENT", color: "#06b6d4" },
-  { angle: (4 * Math.PI) / 3, label: "DEFEND", color: "#22c55e" },
+  { angle: (2 * Math.PI) / 3, label: "MOVEMENT", color: "#22c55e" },
+  { angle: (4 * Math.PI) / 3, label: "DEFEND", color: "#06b6d4" },
 ];
 
 export function BranchSlice() {

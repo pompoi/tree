@@ -5,20 +5,20 @@ import { SKILL_MAP } from "@/data/skills";
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
-  movement: "#06b6d4",
-  defend: "#22c55e",
+  movement: "#22c55e",
+  defend: "#06b6d4",
 };
 
 const BRANCH_GRADIENT_FROM: Record<Branch, string> = {
   attack: "#991b1b",
-  movement: "#164e63",
-  defend: "#14532d",
+  movement: "#14532d",
+  defend: "#164e63",
 };
 
 const BRANCH_GRADIENT_TO: Record<Branch, string> = {
   attack: "#dc2626",
-  movement: "#0891b2",
-  defend: "#16a34a",
+  movement: "#16a34a",
+  defend: "#0891b2",
 };
 
 const BRANCH_ICONS: Record<Branch, string> = {

@@ -6,7 +6,7 @@ const ARROW_STYLES: Record<
   { stroke: string; strokeWidth: number; dash?: string }
 > = {
   facing: { stroke: "#ffffff", strokeWidth: 1.5, dash: "3 2" },
-  move: { stroke: "#67e8f9", strokeWidth: 2, dash: "5 3" },
+  move: { stroke: "#86efac", strokeWidth: 2, dash: "5 3" },
   attack: { stroke: "#fca5a5", strokeWidth: 2.5 },
   counter: { stroke: "#fbbf24", strokeWidth: 1.5, dash: "2 2" },
 };

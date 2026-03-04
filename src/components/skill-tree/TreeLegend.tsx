@@ -2,8 +2,8 @@ import type { Branch } from "@/types/skill";
 
 const LEGEND_ITEMS: { branch: Branch; label: string; color: string }[] = [
   { branch: "attack", label: "Attack", color: "#ef4444" },
-  { branch: "movement", label: "Movement", color: "#06b6d4" },
-  { branch: "defend", label: "Defend", color: "#22c55e" },
+  { branch: "movement", label: "Movement", color: "#22c55e" },
+  { branch: "defend", label: "Defend", color: "#06b6d4" },
 ];
 
 export function TreeLegend() {

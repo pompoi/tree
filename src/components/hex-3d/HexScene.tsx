@@ -10,8 +10,8 @@ import type { Branch } from "@/types/skill";
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
-  movement: "#06b6d4",
-  defend: "#22c55e",
+  movement: "#22c55e",
+  defend: "#06b6d4",
 };
 
 const SCALE = 1 / 24;

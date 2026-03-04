@@ -13,8 +13,8 @@ const SLOT_COUNT = 5;
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
-  movement: "#06b6d4",
-  defend: "#22c55e",
+  movement: "#22c55e",
+  defend: "#06b6d4",
 };
 
 const TIER_BADGES: Record<number, string> = {

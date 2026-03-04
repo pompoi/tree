@@ -8,8 +8,8 @@ const CELL_STYLES: Record<
 > = {
   player: { fill: "#ffffff", stroke: "#ffffff", opacity: 0.95 },
   damage: { fill: "#ef4444", stroke: "#fca5a5", opacity: 0.8 },
-  movement: { fill: "#06b6d4", stroke: "#67e8f9", opacity: 0.8 },
-  block: { fill: "#22c55e", stroke: "#86efac", opacity: 0.8 },
+  movement: { fill: "#22c55e", stroke: "#86efac", opacity: 0.8 },
+  block: { fill: "#06b6d4", stroke: "#67e8f9", opacity: 0.8 },
   conditional: {
     fill: "transparent",
     stroke: "#fbbf24",
@@ -21,8 +21,8 @@ const CELL_STYLES: Record<
 
 const BRANCH_FILLS: Record<Branch, string> = {
   attack: "#ef4444",
-  movement: "#06b6d4",
-  defend: "#22c55e",
+  movement: "#22c55e",
+  defend: "#06b6d4",
 };
 
 interface HexCellSVGProps {

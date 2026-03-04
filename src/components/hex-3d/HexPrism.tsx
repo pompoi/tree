@@ -9,8 +9,8 @@ import type { HexCellType } from "@/types/hex-card";
 const CELL_COLORS: Record<HexCellType, string> = {
   player: "#ffffff",
   damage: "#ef4444",
-  movement: "#06b6d4",
-  block: "#22c55e",
+  movement: "#22c55e",
+  block: "#06b6d4",
   conditional: "#fbbf24",
   empty: "#1f2937",
 };

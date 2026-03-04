@@ -4,7 +4,7 @@ import { Line } from "@react-three/drei";
 
 const ARROW_COLORS: Record<string, string> = {
   facing: "#ffffff",
-  move: "#67e8f9",
+  move: "#86efac",
   attack: "#fca5a5",
   counter: "#fbbf24",
 };

@@ -9,8 +9,8 @@ import Link from "next/link";
 
 const BRANCH_COLORS: Record<Branch, string> = {
   attack: "#ef4444",
-  movement: "#06b6d4",
-  defend: "#22c55e",
+  movement: "#22c55e",
+  defend: "#06b6d4",
 };
 
 const BRANCH_LABELS: Record<Branch, string> = {
