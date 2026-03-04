@@ -573,9 +573,9 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="relative w-full h-full flex flex-col md:flex-row items-stretch">
+    <div className="relative w-full h-full flex flex-col md:flex-row items-stretch overflow-y-auto md:overflow-hidden">
       {/* SVG graph — takes remaining space */}
-      <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center">
+      <div className="min-h-[70dvh] md:flex-1 md:min-h-0 min-w-0 flex items-center justify-center">
         <svg
           ref={svgRef}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
@@ -837,7 +837,7 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
       </div>
 
       {/* Card preview — right side on desktop, below on mobile. Always reserves space. */}
-      <div className="w-full h-[180px] md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-2 md:p-3 overflow-hidden">
+      <div className="w-full min-h-[50dvh] md:min-h-0 md:w-[400px] md:h-auto flex-shrink-0 flex items-center justify-center p-3 overflow-hidden">
         {mounted && activeSkill && activePattern ? (
           <HexCardFull
             skill={activeSkill}
