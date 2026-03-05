@@ -97,35 +97,6 @@ export function ActionBar({ mode }: ActionBarProps) {
   };
 
   return (
-    <>
-      {/* Floating Confirm / Reset button — above everything */}
-      {mode === "play" && (
-        <button
-          onClick={handleConfirm}
-          disabled={!canConfirm && !isConfirmed}
-          className={`fixed left-1/2 -translate-x-1/2 z-40 px-8 py-3 rounded-full text-sm font-bold tracking-wide transition-all ${
-            isConfirmed
-              ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
-              : canConfirm
-                ? "text-white shadow-lg"
-                : "text-white/40 shadow-lg cursor-not-allowed"
-          }`}
-          style={{
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
-            ...(isConfirmed
-              ? {}
-              : {
-                  background: canConfirm ? branchColor : `${branchColor}40`,
-                  boxShadow: canConfirm
-                    ? `0 4px 20px ${branchColor}50`
-                    : "none",
-                }),
-          }}
-        >
-          {isConfirmed ? "RESET" : hasTarget ? `CONFIRM → ${targetHex!.col}${targetHex!.row}` : "CONFIRM"}
-        </button>
-      )}
-
       <div
         className="bg-gray-950 border-t border-white/10"
         style={{ borderTopColor: `${branchColor}40` }}
@@ -256,8 +227,35 @@ export function ActionBar({ mode }: ActionBarProps) {
             </div>
           </div>
         )}
+
+        {/* Confirm / Reset button — inline */}
+        {mode === "play" && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={handleConfirm}
+              disabled={!canConfirm && !isConfirmed}
+              className={`w-full py-3 rounded-lg text-sm font-bold tracking-wide transition-all ${
+                isConfirmed
+                  ? "bg-red-500/90 hover:bg-red-500 text-white"
+                  : canConfirm
+                    ? "text-white"
+                    : "text-white/40 cursor-not-allowed"
+              }`}
+              style={
+                isConfirmed
+                  ? undefined
+                  : { background: canConfirm ? branchColor : `${branchColor}40` }
+              }
+            >
+              {isConfirmed
+                ? "RESET"
+                : hasTarget
+                  ? `CONFIRM → ${targetHex!.col}${targetHex!.row}`
+                  : "CONFIRM"}
+            </button>
+          </div>
+        )}
       </div>
-    </>
   );
 }
 

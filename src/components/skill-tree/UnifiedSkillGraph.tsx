@@ -818,6 +818,152 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
 
       </div>
 
+      {/* Desktop side panel — card + target picker + confirm */}
+      <DesktopSidePanel
+        mode={mode}
+        mounted={mounted}
+        activeSkill={activeSkill}
+        activePattern={activePattern ?? undefined}
+        activeBoostLabel={activeBoostLabel}
+      />
+    </div>
+  );
+}
+
+// ─── Desktop Side Panel ──────────────────────────────────────────────────────
+
+const TARGET_COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+const TARGET_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+function DesktopSidePanel({
+  mode,
+  mounted,
+  activeSkill,
+  activePattern,
+  activeBoostLabel,
+}: {
+  mode: "build" | "play";
+  mounted: boolean;
+  activeSkill: Skill | null;
+  activePattern?: Parameters<typeof HexCardFull>[0]["pattern"];
+  activeBoostLabel?: string;
+}) {
+  const selectedSkillId = useBuildStore((s) => s.selectedSkillId);
+  const confirmedSkillIds = useBuildStore((s) => s.confirmedSkillIds);
+  const setConfirmedSkills = useBuildStore((s) => s.setConfirmedSkills);
+  const targetHex = useBuildStore((s) => s.targetHex);
+  const setTargetHex = useBuildStore((s) => s.setTargetHex);
+  const resetPlayState = useBuildStore((s) => s.resetPlayState);
+
+  const isConfirmed = confirmedSkillIds.length > 0;
+  const hasTarget = targetHex !== null && targetHex.col !== "" && targetHex.row > 0;
+  const canConfirm = mode !== "play" || hasTarget;
+
+  const handleConfirm = useCallback(() => {
+    if (!canConfirm && !isConfirmed) return;
+    if (isConfirmed) {
+      resetPlayState();
+    } else if (selectedSkillId) {
+      const chain: string[] = [];
+      const visited = new Set<string>();
+      function walk(id: string) {
+        const s = SKILL_MAP.get(id);
+        if (!s) return;
+        for (const pid of s.prerequisites) {
+          if (!visited.has(pid)) {
+            visited.add(pid);
+            chain.push(pid);
+            walk(pid);
+          }
+        }
+      }
+      walk(selectedSkillId);
+      chain.push(selectedSkillId);
+      setConfirmedSkills(chain);
+    }
+  }, [canConfirm, isConfirmed, selectedSkillId, setConfirmedSkills, resetPlayState]);
+
+  const branchColor = activeSkill ? BRANCH_COLORS[activeSkill.branch] : "#888";
+
+  return (
+    <div className="hidden md:flex md:w-[400px] flex-shrink-0 flex-col overflow-hidden">
+      {/* Card */}
+      <div className="flex-1 min-h-0 flex items-center justify-center p-3 overflow-y-auto">
+        {mounted && activeSkill && activePattern ? (
+          <HexCardFull
+            skill={activeSkill}
+            pattern={activePattern}
+            animate
+            boostLabel={activeBoostLabel}
+          />
+        ) : null}
+      </div>
+
+      {/* Target picker + Confirm — Play mode only */}
+      {mode === "play" && selectedSkillId && (
+        <div className="flex-shrink-0 border-t border-white/10 p-3 flex flex-col gap-2">
+          {!isConfirmed && (
+            <>
+              <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+                Target
+              </span>
+              <div className="flex gap-1">
+                {TARGET_COLS.map((col) => (
+                  <button
+                    key={col}
+                    onClick={() => setTargetHex({ col, row: targetHex?.row ?? 0 })}
+                    className="flex-1 py-1.5 rounded text-xs font-bold transition-colors"
+                    style={{
+                      background: targetHex?.col === col ? branchColor : "rgba(255,255,255,0.08)",
+                      color: targetHex?.col === col ? "#ffffff" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {col}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {TARGET_ROWS.map((row) => (
+                  <button
+                    key={row}
+                    onClick={() => setTargetHex({ col: targetHex?.col ?? "", row })}
+                    className="flex-1 py-1.5 rounded text-xs font-bold transition-colors"
+                    style={{
+                      background: targetHex?.row === row ? branchColor : "rgba(255,255,255,0.08)",
+                      color: targetHex?.row === row ? "#ffffff" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {row}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <button
+            onClick={handleConfirm}
+            disabled={!canConfirm && !isConfirmed}
+            className={`w-full py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
+              isConfirmed
+                ? "bg-red-500/90 hover:bg-red-500 text-white"
+                : canConfirm
+                  ? "text-white"
+                  : "text-white/40 cursor-not-allowed"
+            }`}
+            style={
+              isConfirmed
+                ? undefined
+                : { background: canConfirm ? branchColor : `${branchColor}40` }
+            }
+          >
+            {isConfirmed
+              ? "RESET"
+              : hasTarget
+                ? `CONFIRM → ${targetHex!.col}${targetHex!.row}`
+                : "CONFIRM"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
