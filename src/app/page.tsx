@@ -66,8 +66,8 @@ export default function Home() {
         <UnifiedSkillGraph mode={view} />
       </div>
 
-      {/* Mobile action bar */}
-      <div className="md:hidden flex-shrink-0">
+      {/* Action bar — skill info, target picker, confirm */}
+      <div className="flex-shrink-0">
         <ActionBar mode={view} />
       </div>
 

@@ -222,7 +222,17 @@ body {
 
 /* ─── Action Bar (mobile) ─────────────────────────────────────────────────── */
 
-.action-bar-card {
-  transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  overflow: hidden;
+.action-bar-card-open {
+  animation: action-bar-slide-up 0.25s ease-out both;
+}
+
+@keyframes action-bar-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

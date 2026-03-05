@@ -34,8 +34,6 @@ const BRANCH_ICONS: Record<Branch, string> = {
   defend: "\u{1F6E1}",
 };
 
-const ADVANTAGE_COLOR = "#fbbf24"; // gold
-const DISADVANTAGE_COLOR = "#a855f7"; // purple
 
 // ─── YOMI matchup maps ──────────────────────────────────────────────────────
 // Default triangle: ATK > MOV > DEF > ATK
@@ -610,20 +608,6 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="purple-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
 
           <g transform={`rotate(${rotation}, 0, 0)`} style={{ transition: "transform 0.3s ease" }}>
@@ -735,22 +719,20 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                 filterAttr = undefined;
               }
 
+              // YOMI matchup opacity: skills you beat are bright, skills that beat you are dimmed
               const isAdvantage = advantageIds.has(skill.id);
               const isDisadvantage = disadvantageIds.has(skill.id);
+              const hasMatchupContext = hoveredSkill && !showGlow;
+              let groupOpacity = 1;
 
-              if (isDisadvantage && !showGlow) {
-                stroke = DISADVANTAGE_COLOR;
-                strokeW = 2.5;
-                fill = DISADVANTAGE_COLOR;
-                fillOpacity = 0.35;
-                filterAttr = "url(#purple-glow)";
-              }
-              if (isAdvantage && !showGlow) {
-                stroke = ADVANTAGE_COLOR;
-                strokeW = 2.5;
-                fill = ADVANTAGE_COLOR;
-                fillOpacity = 0.4;
-                filterAttr = "url(#gold-glow)";
+              if (hasMatchupContext) {
+                if (isAdvantage) {
+                  groupOpacity = 1;
+                } else if (isDisadvantage) {
+                  groupOpacity = 0.25;
+                } else if (!isHighlighted) {
+                  groupOpacity = 0.4;
+                }
               }
 
               return (
@@ -759,6 +741,8 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                   style={{
                     cursor:
                       mode === "build" && skill.isBase ? "default" : "pointer",
+                    opacity: groupOpacity,
+                    transition: "opacity 0.15s ease",
                   }}
                   onMouseEnter={() => handleNodeHover(skill)}
                   onMouseLeave={handleNodeHoverEnd}
@@ -832,32 +816,8 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
           </g>{/* end rotation group */}
         </svg>
 
-        {/* Confirm / Reset button — desktop only (mobile uses ActionBar) */}
-        {mode === "play" && (selectedSkillId || isConfirmed) && (
-          <button
-            onClick={handleConfirm}
-            className={`hidden md:block absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all ${
-              isConfirmed
-                ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
-                : "bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg backdrop-blur-sm"
-            }`}
-          >
-            {isConfirmed ? "RESET" : "CONFIRM"}
-          </button>
-        )}
       </div>
 
-      {/* Card preview — desktop only (mobile uses ActionBar) */}
-      <div className="hidden md:flex md:w-[400px] md:h-auto flex-shrink-0 items-center justify-center p-3 overflow-hidden">
-        {mounted && activeSkill && activePattern ? (
-          <HexCardFull
-            skill={activeSkill}
-            pattern={activePattern}
-            animate
-            boostLabel={activeBoostLabel}
-          />
-        ) : null}
-      </div>
     </div>
   );
 }

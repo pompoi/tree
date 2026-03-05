@@ -63,6 +63,7 @@ interface BuildState {
   // Play-mode transient state (not persisted)
   selectedSkillId: string | null;
   confirmedSkillIds: string[];
+  targetHex: { col: string; row: number } | null;
 
   setActiveSlot: (index: number) => void;
   renameBuild: (index: number, name: string) => void;
@@ -72,6 +73,7 @@ interface BuildState {
   setHoveredSkill: (skillId: string | null) => void;
   selectSkill: (id: string | null) => void;
   setConfirmedSkills: (ids: string[]) => void;
+  setTargetHex: (target: { col: string; row: number } | null) => void;
   resetPlayState: () => void;
 }
 
@@ -85,6 +87,7 @@ export const useBuildStore = create<BuildState>()(
       hoveredSkillId: null,
       selectedSkillId: null,
       confirmedSkillIds: [],
+      targetHex: null,
 
       setActiveSlot: (index: number) => {
         set({ activeSlot: index });
@@ -204,15 +207,19 @@ export const useBuildStore = create<BuildState>()(
       },
 
       selectSkill: (id: string | null) => {
-        set({ selectedSkillId: id });
+        set({ selectedSkillId: id, targetHex: null });
       },
 
       setConfirmedSkills: (ids: string[]) => {
         set({ confirmedSkillIds: ids });
       },
 
+      setTargetHex: (target: { col: string; row: number } | null) => {
+        set({ targetHex: target });
+      },
+
       resetPlayState: () => {
-        set({ selectedSkillId: null, confirmedSkillIds: [] });
+        set({ selectedSkillId: null, confirmedSkillIds: [], targetHex: null });
       },
     }),
     {

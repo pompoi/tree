@@ -39,6 +39,9 @@ const BASE_TO_BOOST: Record<string, { id: string; label: string }> = {
   "defend": { id: "iron-skin", label: "+1 Block (Iron Skin)" },
 };
 
+const TARGET_COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+const TARGET_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
 interface ActionBarProps {
   mode: "build" | "play";
 }
@@ -49,6 +52,8 @@ export function ActionBar({ mode }: ActionBarProps) {
   const selectedSkillId = useBuildStore((s) => s.selectedSkillId);
   const confirmedSkillIds = useBuildStore((s) => s.confirmedSkillIds);
   const setConfirmedSkills = useBuildStore((s) => s.setConfirmedSkills);
+  const targetHex = useBuildStore((s) => s.targetHex);
+  const setTargetHex = useBuildStore((s) => s.setTargetHex);
   const resetPlayState = useBuildStore((s) => s.resetPlayState);
 
   const builds = useBuildStore((s) => s.builds);
@@ -76,15 +81,15 @@ export function ActionBar({ mode }: ActionBarProps) {
   }
 
   const branchColor = BRANCH_COLORS[skill.branch];
+  const hasTarget = targetHex !== null && targetHex.col !== "" && targetHex.row > 0;
+  const canConfirm = mode !== "play" || hasTarget;
 
   const handleConfirm = () => {
-    // confirmedSkillIds should include the selected skill + its prereq chain
-    // This is set by the graph component via store when confirming
+    if (!canConfirm) return;
     if (isConfirmed) {
       resetPlayState();
       setExpanded(false);
     } else {
-      // Read the highlightedIds that the graph already computed — we mirror the logic here
       const chain = getPrereqChainIds(skill.id);
       chain.push(skill.id);
       setConfirmedSkills(chain);
@@ -97,22 +102,27 @@ export function ActionBar({ mode }: ActionBarProps) {
       {mode === "play" && (
         <button
           onClick={handleConfirm}
+          disabled={!canConfirm && !isConfirmed}
           className={`fixed left-1/2 -translate-x-1/2 z-40 px-8 py-3 rounded-full text-sm font-bold tracking-wide transition-all ${
             isConfirmed
               ? "bg-red-500/90 hover:bg-red-500 text-white shadow-lg shadow-red-500/30"
-              : "text-white shadow-lg"
+              : canConfirm
+                ? "text-white shadow-lg"
+                : "text-white/40 shadow-lg cursor-not-allowed"
           }`}
           style={{
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
             ...(isConfirmed
               ? {}
               : {
-                  background: branchColor,
-                  boxShadow: `0 4px 20px ${branchColor}50`,
+                  background: canConfirm ? branchColor : `${branchColor}40`,
+                  boxShadow: canConfirm
+                    ? `0 4px 20px ${branchColor}50`
+                    : "none",
                 }),
           }}
         >
-          {isConfirmed ? "RESET" : "CONFIRM"}
+          {isConfirmed ? "RESET" : hasTarget ? `CONFIRM → ${targetHex!.col}${targetHex!.row}` : "CONFIRM"}
         </button>
       )}
 
@@ -121,27 +131,29 @@ export function ActionBar({ mode }: ActionBarProps) {
         style={{ borderTopColor: `${branchColor}40` }}
       >
         {/* Expanded card area */}
-        <div
-          className="action-bar-card"
-          style={{ maxHeight: expanded ? "65dvh" : "0px" }}
-        >
-          <div className="relative p-3 flex items-center justify-center">
-            <button
-              onClick={() => setExpanded(false)}
-              className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
-            >
-              ✕
-            </button>
-            {pattern && (
-              <HexCardFull
-                skill={skill}
-                pattern={pattern}
-                animate
-                boostLabel={boostLabel}
-              />
-            )}
+        {expanded && (
+          <div
+            className="action-bar-card-open overflow-y-auto"
+            style={{ maxHeight: "65dvh" }}
+          >
+            <div className="relative p-3 flex items-center justify-center">
+              <button
+                onClick={() => setExpanded(false)}
+                className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+              {pattern && (
+                <HexCardFull
+                  skill={skill}
+                  pattern={pattern}
+                  animate
+                  boostLabel={boostLabel}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Collapsed action bar */}
         <div className="flex items-center gap-3 px-4 py-3">
@@ -161,7 +173,9 @@ export function ActionBar({ mode }: ActionBarProps) {
                 className="text-sm font-bold truncate"
                 style={{ color: isConfirmed ? "#4ade80" : "#ffffff" }}
               >
-                {isConfirmed ? `CONFIRMED: ${skill.name}` : skill.name}
+                {isConfirmed
+                  ? `CONFIRMED: ${skill.name}${targetHex ? ` → ${targetHex.col}${targetHex.row}` : ""}`
+                  : skill.name}
               </span>
               <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider flex-shrink-0">
                 {BRANCH_LABELS[skill.branch]} {TIER_BADGES[skill.tier]}
@@ -187,6 +201,61 @@ export function ActionBar({ mode }: ActionBarProps) {
             </button>
           )}
         </div>
+
+        {/* Target hex picker — Play mode only, before confirm */}
+        {mode === "play" && !isConfirmed && (
+          <div className="px-4 pb-3 flex flex-col gap-2">
+            <span className="text-[11px] font-bold text-white/40 uppercase tracking-wider">
+              Target
+            </span>
+            {/* Letter row */}
+            <div className="flex gap-1">
+              {TARGET_COLS.map((col) => (
+                <button
+                  key={col}
+                  onClick={() =>
+                    setTargetHex({
+                      col,
+                      row: targetHex?.row ?? 0,
+                    })
+                  }
+                  className="flex-1 py-1.5 rounded text-xs font-bold transition-colors"
+                  style={{
+                    background:
+                      targetHex?.col === col ? branchColor : "rgba(255,255,255,0.08)",
+                    color:
+                      targetHex?.col === col ? "#ffffff" : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  {col}
+                </button>
+              ))}
+            </div>
+            {/* Number row */}
+            <div className="flex gap-1">
+              {TARGET_ROWS.map((row) => (
+                <button
+                  key={row}
+                  onClick={() =>
+                    setTargetHex({
+                      col: targetHex?.col ?? "",
+                      row,
+                    })
+                  }
+                  className="flex-1 py-1.5 rounded text-xs font-bold transition-colors"
+                  style={{
+                    background:
+                      targetHex?.row === row ? branchColor : "rgba(255,255,255,0.08)",
+                    color:
+                      targetHex?.row === row ? "#ffffff" : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  {row}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
