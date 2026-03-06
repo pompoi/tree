@@ -163,14 +163,12 @@ export function ActionBar({ mode }: ActionBarProps) {
           </div>
 
           {/* Info expand button */}
-          {!isConfirmed && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white/50 hover:text-white text-sm flex-shrink-0"
-            >
-              {expanded ? "▾" : "ⓘ"}
-            </button>
-          )}
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white/50 hover:text-white text-sm flex-shrink-0"
+          >
+            {expanded ? "▾" : "ⓘ"}
+          </button>
         </div>
 
         {/* Target hex picker — Play mode only, before confirm */}

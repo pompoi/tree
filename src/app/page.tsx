@@ -56,7 +56,7 @@ export default function Home() {
             active={showBuildPanel}
             onClick={() => setShowBuildPanel((v) => !v)}
           >
-            Build
+            Builds
           </RibbonButton>
         </div>
       </div>
