@@ -66,8 +66,8 @@ export default function Home() {
         <UnifiedSkillGraph mode={view} />
       </div>
 
-      {/* Action bar — mobile only */}
-      <div className="md:hidden flex-shrink-0">
+      {/* Action bar — mobile only, fixed overlay at bottom */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30">
         <ActionBar mode={view} />
       </div>
 

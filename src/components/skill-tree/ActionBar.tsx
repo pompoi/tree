@@ -97,35 +97,35 @@ export function ActionBar({ mode }: ActionBarProps) {
   };
 
   return (
+    <>
+      {/* Full-screen card overlay */}
+      {expanded && (
+        <div className="fixed inset-0 z-50 bg-gray-950/95 flex flex-col">
+          <div className="flex items-center justify-end p-3">
+            <button
+              onClick={() => setExpanded(false)}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white text-lg"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto flex items-start justify-center p-4">
+            {pattern && (
+              <HexCardFull
+                skill={skill}
+                pattern={pattern}
+                animate
+                boostLabel={boostLabel}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <div
         className="bg-gray-950 border-t border-white/10"
         style={{ borderTopColor: `${branchColor}40` }}
       >
-        {/* Expanded card area */}
-        {expanded && (
-          <div
-            className="action-bar-card-open overflow-y-auto"
-            style={{ maxHeight: "65dvh" }}
-          >
-            <div className="relative p-3 flex items-center justify-center">
-              <button
-                onClick={() => setExpanded(false)}
-                className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-white/60 hover:text-white"
-              >
-                ✕
-              </button>
-              {pattern && (
-                <HexCardFull
-                  skill={skill}
-                  pattern={pattern}
-                  animate
-                  boostLabel={boostLabel}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Collapsed action bar */}
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Branch color accent */}
@@ -256,6 +256,7 @@ export function ActionBar({ mode }: ActionBarProps) {
           </div>
         )}
       </div>
+    </>
   );
 }
 
