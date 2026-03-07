@@ -1,7 +1,7 @@
 import type { HexCardPattern } from "@/types/hex-card";
 
 /**
- * Hex card patterns for all 30 skills.
+ * Hex card patterns for all skills.
  *
  * Coordinate convention (flat-top axial):
  *   q=+1 → right, q=-1 → left
@@ -302,86 +302,471 @@ export const HEX_PATTERNS: HexCardPattern[] = [
     note: "Teleport adjacent to target · behind = 1 damage",
   },
 
-  // ─── Tier 3: Attack Branch ─────────────────────────────────────────────
+  // ─── Tier 2: Cross-Branch AD ───────────────────────────────────────────
 
   {
-    skillId: "executioner",
-    cells: [
-      { coord: { q: 0, r: 0 }, type: "player" },
-      { coord: { q: 1, r: 0 }, type: "damage", label: "×3", animationDelay: 1 },
-    ],
-    arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" }],
-    note: "3 damage · requires Advantage (consumed)",
-  },
-  {
-    skillId: "whirlwind",
-    cells: [
-      { coord: { q: 0, r: 0 }, type: "player" },
-      { coord: { q: 1, r: 0 }, type: "damage", animationDelay: 1 },
-      { coord: { q: 1, r: -1 }, type: "damage", animationDelay: 2 },
-      { coord: { q: 0, r: -1 }, type: "damage", animationDelay: 3 },
-      { coord: { q: -1, r: 0 }, type: "damage", animationDelay: 4 },
-      { coord: { q: -1, r: 1 }, type: "damage", animationDelay: 5 },
-      { coord: { q: 0, r: 1 }, type: "damage", animationDelay: 6 },
-    ],
-    arrows: [],
-    note: "1 damage to ALL 6 adjacent hexes",
-  },
-
-  // ─── Tier 3: Defense Branch ────────────────────────────────────────────
-
-  {
-    skillId: "mirror-guard",
+    skillId: "counterstrike",
     cells: [
       { coord: { q: 0, r: 0 }, type: "player" },
       { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "!", animationDelay: 2 },
     ],
     arrows: [
       { from: { q: 1, r: 0 }, to: { q: 0, r: 0 }, style: "attack" },
       { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
     ],
-    note: "Copy attacker's skill back at them",
+    note: "Block then counter-strike",
   },
   {
-    skillId: "fortress",
+    skillId: "bait-and-punish",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 0 }, type: "damage", label: "hit", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "=", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 1, r: 0 }, to: { q: 0, r: 0 }, style: "attack" },
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+    ],
+    note: "Absorb hit, return equal damage",
+  },
+  {
+    skillId: "step-through",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 0, r: 1 }, style: "move" },
+      { from: { q: 0, r: 1 }, to: { q: 1, r: 0 }, style: "attack" },
+    ],
+    note: "Dodge sideways, strike",
+  },
+
+  // ─── Tier 2: Cross-Branch AM ───────────────────────────────────────────
+
+  {
+    skillId: "blitz",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 2, r: 0 }, type: "damage", label: "2", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: 0 }, style: "attack" },
+    ],
+    note: "Move 2, deal 2 damage",
+  },
+  {
+    skillId: "hit-and-run",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "damage", animationDelay: 1 },
+      { coord: { q: 0, r: 0 }, type: "movement", label: "↻", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" },
+    ],
+    note: "Strike, rotate 180°",
+  },
+  {
+    skillId: "ambush",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 2, r: -1 }, type: "conditional", label: "!", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: -1 }, style: "attack" },
+    ],
+    note: "Reads as MOV, resolves as ATK",
+  },
+
+  // ─── Tier 2: Cross-Branch DM ───────────────────────────────────────────
+
+  {
+    skillId: "intercept",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: -1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 2 },
+      { coord: { q: 2, r: -1 }, type: "damage", label: "!", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: -1 }, style: "move" },
+      { from: { q: 1, r: -1 }, to: { q: 2, r: -1 }, style: "counter" },
+    ],
+    note: "Move to block flank, counter",
+  },
+  {
+    skillId: "phaseout",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 0, r: 2 }, type: "movement", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 0, r: 1 }, style: "move" },
+      { from: { q: 0, r: 1 }, to: { q: 0, r: 2 }, style: "move" },
+    ],
+    note: "2 hex perpendicular, untargetable",
+  },
+  {
+    skillId: "shield-advance",
     cells: [
       { coord: { q: 0, r: 0 }, type: "player" },
       { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
-      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 2 },
-      { coord: { q: 0, r: -1 }, type: "block", animationDelay: 3 },
-      { coord: { q: -1, r: 0 }, type: "block", animationDelay: 4 },
-      { coord: { q: -1, r: 1 }, type: "block", animationDelay: 5 },
-      { coord: { q: 0, r: 1 }, type: "block", animationDelay: 6 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: 1 }, type: "block", animationDelay: 1 },
     ],
     arrows: [],
-    note: "Block ALL damage · immobile 2 rounds after",
+    note: "Omnidirectional block + rotate",
   },
 
-  // ─── Tier 3: Movement Branch ───────────────────────────────────────────
+  // ─── Tier 3: Deep Attack ────────────────────────────────────────────────
 
   {
-    skillId: "phantom-step",
+    skillId: "killshot",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "empty" },
+      { coord: { q: 2, r: 0 }, type: "damage", label: "3", animationDelay: 1 },
+    ],
+    arrows: [{ from: { q: 0, r: 0 }, to: { q: 2, r: 0 }, style: "attack" }],
+    note: "3 damage at range 2, breaks Parry",
+  },
+  {
+    skillId: "blinding-combo",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "1", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "2", animationDelay: 2 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "3", animationDelay: 3 },
+    ],
+    arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" }],
+    note: "3-hit combo, gains Advantage",
+  },
+  {
+    skillId: "smoke-and-daggers",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "conditional", label: "?", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "conditional", label: "?", animationDelay: 2 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "4", animationDelay: 3 },
+    ],
+    arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" }],
+    note: "If DEF×2 rounds, deal 4",
+  },
+  {
+    skillId: "blur",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "⚡", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "2", animationDelay: 2 },
+    ],
+    arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" }],
+    note: "Movement-phase combo, ignores Parry",
+  },
+
+  // ─── Tier 3: Deep Defend ────────────────────────────────────────────────
+
+  {
+    skillId: "bulwark",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "3", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 1, r: 0 }, to: { q: 0, r: 0 }, style: "attack" },
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+    ],
+    note: "Block all frontal, return 3",
+  },
+  {
+    skillId: "iron-curtain",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: 1 }, type: "block", animationDelay: 1 },
+    ],
+    arrows: [],
+    note: "All damage to 0, immobile 1 round",
+  },
+  {
+    skillId: "mirror-wall",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "conditional", label: "?", animationDelay: 1 },
+      { coord: { q: -1, r: 1 }, type: "movement", animationDelay: 2 },
+      { coord: { q: -1, r: 1 }, type: "damage", label: "2", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: -1, r: 1 }, style: "move" },
+    ],
+    note: "Predict branch, dodge behind, deal 2",
+  },
+  {
+    skillId: "repel",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "1", animationDelay: 2 },
+      { coord: { q: 1, r: -1 }, type: "damage", label: "1", animationDelay: 2 },
+      { coord: { q: 0, r: -1 }, type: "damage", label: "1", animationDelay: 2 },
+      { coord: { q: -1, r: 0 }, type: "damage", label: "1", animationDelay: 2 },
+      { coord: { q: -1, r: 1 }, type: "damage", label: "1", animationDelay: 2 },
+      { coord: { q: 0, r: 1 }, type: "damage", label: "1", animationDelay: 2 },
+    ],
+    arrows: [],
+    note: "Redirect damage as splash to adjacents",
+  },
+
+  // ─── Tier 3: Deep Move ──────────────────────────────────────────────────
+
+  {
+    skillId: "ghost-walk",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 2, r: -1 }, type: "movement", animationDelay: 2 },
+      { coord: { q: 2, r: 0 }, type: "movement", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: -1 }, style: "move" },
+    ],
+    note: "5-hex range, untargetable",
+  },
+  {
+    skillId: "juggernaut",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 2, r: 0 }, type: "damage", label: "2", animationDelay: 2 },
+      { coord: { q: 2, r: 0 }, type: "movement", label: "push", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: 0 }, style: "attack" },
+    ],
+    note: "Move through, push 2, deal 2",
+  },
+  {
+    skillId: "warp-strike",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "empty", label: "T" },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "2", animationDelay: 1 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+    ],
+    note: "Teleport adjacent, 2 damage any facing",
+  },
+  {
+    skillId: "slip-away",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: -1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: -2, r: 0 }, type: "movement", animationDelay: 2 },
+      { coord: { q: -3, r: 0 }, type: "movement", animationDelay: 3 },
+      { coord: { q: -3, r: 0 }, type: "block", label: "+2", animationDelay: 4 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: -1, r: 0 }, style: "move" },
+      { from: { q: -1, r: 0 }, to: { q: -2, r: 0 }, style: "move" },
+      { from: { q: -2, r: 0 }, to: { q: -3, r: 0 }, style: "move" },
+    ],
+    note: "4 hex escape, +2 Defend next round",
+  },
+
+  // ─── Tier 3: AD Boundary ────────────────────────────────────────────────
+
+  {
+    skillId: "vengeance",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "×2", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 1, r: 0 }, to: { q: 0, r: 0 }, style: "attack" },
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+    ],
+    note: "Block, return 2× blocked damage",
+  },
+  {
+    skillId: "iron-feint",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 0 }, type: "block", label: "hit", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "💥", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 1, r: 0 }, to: { q: 0, r: 0 }, style: "attack" },
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+    ],
+    note: "Absorb hit, Power Hit back",
+  },
+  {
+    skillId: "flicker-stance",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 0, r: 1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "1", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 0, r: 1 }, style: "move" },
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" },
+    ],
+    note: "Dodge + strike, remove Advantage",
+  },
+  {
+    skillId: "war-dance",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "conditional", label: "A", animationDelay: 1 },
+      { coord: { q: 0, r: 1 }, type: "conditional", label: "B", animationDelay: 1 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+      { from: { q: 0, r: 0 }, to: { q: 0, r: 1 }, style: "attack" },
+    ],
+    note: "Choose: block+punish OR feint",
+  },
+
+  // ─── Tier 3: AM Boundary ────────────────────────────────────────────────
+
+  {
+    skillId: "storm-blade",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 2, r: 0 }, type: "movement", animationDelay: 2 },
+      { coord: { q: 3, r: 0 }, type: "damage", label: "3", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: 0 }, style: "move" },
+      { from: { q: 2, r: 0 }, to: { q: 3, r: 0 }, style: "attack" },
+    ],
+    note: "Move 3, deal 3 damage",
+  },
+  {
+    skillId: "hurricane",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "1", animationDelay: 1 },
+      { coord: { q: 0, r: 0 }, type: "movement", label: "↻", animationDelay: 2 },
+      { coord: { q: -1, r: 0 }, type: "damage", label: "1", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" },
+      { from: { q: 0, r: 0 }, to: { q: -1, r: 0 }, style: "attack" },
+    ],
+    note: "Strike, pivot, strike again",
+  },
+  {
+    skillId: "death-from-shadows",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 1, r: 1 }, type: "movement", animationDelay: 2 },
+      { coord: { q: 1, r: 1 }, type: "damage", label: "2", animationDelay: 3 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 1, r: 1 }, style: "attack" },
+    ],
+    note: "Reads as MOV, 2 damage from behind",
+  },
+  {
+    skillId: "whiplash",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "1", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "conditional", label: "?", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "attack" },
+    ],
+    note: "Strike, fake 2nd hit for Advantage",
+  },
+
+  // ─── Tier 3: DM Boundary ────────────────────────────────────────────────
+
+  {
+    skillId: "guardian-step",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: -1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: -1 }, style: "move" },
+    ],
+    note: "Flank attacker while blocking",
+  },
+  {
+    skillId: "vanishing-guard",
     cells: [
       { coord: { q: 0, r: 0 }, type: "player" },
       { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 1 },
       { coord: { q: 2, r: 0 }, type: "movement", animationDelay: 2 },
       { coord: { q: 3, r: 0 }, type: "movement", animationDelay: 3 },
-      { coord: { q: 0, r: -1 }, type: "movement", animationDelay: 1 },
-      { coord: { q: -1, r: 0 }, type: "movement", animationDelay: 2 },
-      { coord: { q: 0, r: 1 }, type: "movement", animationDelay: 1 },
+      { coord: { q: 3, r: 0 }, type: "block", label: "+1", animationDelay: 4 },
     ],
-    arrows: [],
-    note: "Any hex within 3 · free facing · untargetable",
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+      { from: { q: 1, r: 0 }, to: { q: 2, r: 0 }, style: "move" },
+      { from: { q: 2, r: 0 }, to: { q: 3, r: 0 }, style: "move" },
+    ],
+    note: "3 hex move, untargetable, +1 Defend",
   },
   {
-    skillId: "overrun",
+    skillId: "fortress-march",
     cells: [
       { coord: { q: 0, r: 0 }, type: "player" },
-      { coord: { q: 1, r: 0 }, type: "damage", animationDelay: 1 },
-      { coord: { q: 2, r: 0 }, type: "conditional", label: "push", animationDelay: 2 },
+      { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: 1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "movement", animationDelay: 2 },
+      { coord: { q: 2, r: 0 }, type: "movement", animationDelay: 3 },
     ],
-    arrows: [{ from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" }],
-    note: "Move through · push target 1 hex · 1 damage",
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "move" },
+    ],
+    note: "Move 2 with omnidirectional block",
+  },
+  {
+    skillId: "displacement",
+    cells: [
+      { coord: { q: 0, r: 0 }, type: "player" },
+      { coord: { q: 1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: -1 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 0 }, type: "block", animationDelay: 1 },
+      { coord: { q: -1, r: 1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 0, r: 1 }, type: "block", animationDelay: 1 },
+      { coord: { q: 1, r: 0 }, type: "damage", label: "!", animationDelay: 2 },
+    ],
+    arrows: [
+      { from: { q: 0, r: 0 }, to: { q: 1, r: 0 }, style: "counter" },
+    ],
+    note: "Face any direction, counter from any side",
   },
 ];
 
