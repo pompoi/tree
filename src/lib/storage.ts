@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SKILL_MAP } from "@/data/skills";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
@@ -34,12 +35,24 @@ export type StoredBuildState = z.infer<typeof BuildStoreSchema>;
 
 /**
  * Validate raw localStorage data against the BuildStoreSchema.
+ * Also validates that all unlockedSkillIds exist in SKILL_MAP.
  * Returns the parsed state if valid, null otherwise (triggers graceful reset).
  */
 export function validateStoredState(data: unknown): StoredBuildState | null {
   const result = BuildStoreSchema.safeParse(data);
-  if (result.success) {
-    return result.data;
+  if (!result.success) {
+    return null;
   }
-  return null;
+
+  // Validate that all unlockedSkillIds exist in SKILL_MAP
+  for (const build of result.data.builds) {
+    for (const skillId of build.unlockedSkillIds) {
+      if (!SKILL_MAP.has(skillId)) {
+        // Skill no longer exists in the current build — graceful reset
+        return null;
+      }
+    }
+  }
+
+  return result.data;
 }
