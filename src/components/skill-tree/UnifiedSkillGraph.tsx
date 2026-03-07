@@ -404,8 +404,16 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
         // Play: only unlocked skills (base skills always shown), hide passive boosts
         if (PASSIVE_BOOST_IDS.has(skill.id)) continue;
         if (!skill.isBase && !unlockedSet.has(skill.id)) continue;
+      } else {
+        // Build: progressive reveal — show unlocked + next-available
+        if (!skill.isBase && !unlockedSet.has(skill.id)) {
+          // Only show if all prerequisites are unlocked (or are base skills)
+          const canReveal = skill.prerequisites.every(
+            (pid) => unlockedSet.has(pid) || SKILLS.find((s) => s.id === pid)?.isBase
+          );
+          if (!canReveal) continue;
+        }
       }
-      // Build: show ALL skills
 
       const { x, y } = axialToPixel(pos.q, pos.r);
       result.push({ ...skill, px: x, py: y });
@@ -417,6 +425,21 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
     () => new Set(visibleSkills.map((s) => s.id)),
     [visibleSkills]
   );
+
+  // Track newly revealed skills for entrance animation
+  const prevVisibleIdsRef = useRef<Set<string>>(new Set());
+  const newlyRevealedIds = useMemo(() => {
+    const prev = prevVisibleIdsRef.current;
+    const fresh = new Set<string>();
+    for (const id of visibleIds) {
+      if (!prev.has(id)) fresh.add(id);
+    }
+    return fresh;
+  }, [visibleIds]);
+
+  useEffect(() => {
+    prevVisibleIdsRef.current = visibleIds;
+  }, [visibleIds]);
 
   // ─── Highlighted IDs (prereq chain of hovered or selected) ─────────
   const highlightedIds = useMemo(() => {
@@ -915,6 +938,8 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                 }
               }
 
+              const isNewlyRevealed = newlyRevealedIds.has(skill.id);
+
               return (
                 <g
                   key={skill.id}
@@ -923,6 +948,7 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
                       mode === "build" && skill.isBase ? "default" : "pointer",
                     opacity: groupOpacity,
                     transition: "opacity 0.15s ease",
+                    animation: isNewlyRevealed ? "hexReveal 0.4s ease-out" : undefined,
                   }}
                   onMouseEnter={() => handleNodeHover(skill)}
                   onMouseLeave={handleNodeHoverEnd}
