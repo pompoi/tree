@@ -39,33 +39,29 @@ const BRANCH_ICONS: Record<Branch, string> = {
 // Default triangle: ATK > MOV > DEF > ATK
 // Overrides are derived from each skill's interactionNotes.
 //
-// ATK: melee-attack, power-hit, quick-jab, feint, lunge, combo-strike,
-//      feint-strike, executioner, whirlwind
-// MOV: move, flanking, dash, pivot, charge, withdraw, shadow-step,
-//      phantom-step, overrun
-// DEF: defend, parry, brace, sidestep, riposte, deflect, anticipate,
-//      mirror-guard, fortress
+// ATK (T0-T2 base): melee-attack, power-hit, quick-jab, feint, lunge,
+//      combo-strike, feint-strike
+// MOV (T0-T2 base): move, flanking, dash, pivot, charge, withdraw, shadow-step
+// DEF (T0-T2 base): defend, parry, brace, sidestep, riposte, deflect, anticipate
 
-const ALL_MOV = ["move", "flanking", "dash", "pivot", "charge", "withdraw", "shadow-step", "phantom-step", "overrun"];
-const ALL_DEF = ["defend", "parry", "brace", "sidestep", "riposte", "deflect", "anticipate", "mirror-guard", "fortress"];
-const ALL_ATK = ["melee-attack", "power-hit", "quick-jab", "feint", "lunge", "combo-strike", "feint-strike", "executioner", "whirlwind"];
+const ALL_MOV = ["move", "flanking", "dash", "pivot", "charge", "withdraw", "shadow-step"];
+const ALL_DEF = ["defend", "parry", "brace", "sidestep", "riposte", "deflect", "anticipate"];
+const ALL_ATK = ["melee-attack", "power-hit", "quick-jab", "feint", "lunge", "combo-strike", "feint-strike"];
 
-// Standard ATK that MOV loses to (excluding feint/feint-strike neutral, power-hit/executioner reversed)
-const STD_ATK_VS_MOV = ["melee-attack", "quick-jab", "lunge", "combo-strike", "whirlwind"];
+// Standard ATK that MOV loses to (excluding feint/feint-strike neutral, power-hit reversed)
+const STD_ATK_VS_MOV = ["melee-attack", "quick-jab", "lunge", "combo-strike"];
 
 const SKILL_BEATS: Record<string, string[]> = {
-  // ─── Attack ───
+  // ─── T0-T1 Attack ───
   "melee-attack": [...ALL_MOV, "feint"],
-  "power-hit":    ["parry", "riposte", "feint"],                       // loses to MOV (slow); breaks Parry/Riposte
+  "power-hit":    ["parry", "riposte", "feint"],                       // breaks Parry/Riposte; loses to MOV
   "quick-jab":    [...ALL_MOV, "power-hit", "feint", "sidestep"],      // speed beats Power Hit; resolves before Sidestep
   "feint":        [...ALL_DEF, "pivot"],                                // beats all DEF; Pivot notes: "Loses to Feint"
   "lunge":        [...ALL_MOV, "feint"],
   "combo-strike": [...ALL_MOV, "feint"],
-  "feint-strike": [...ALL_DEF, "feint"],                                // upgraded Feint: beats all DEF; beats Feint (ATK vs Feint)
-  "executioner":  [...ALL_MOV, "feint"],                                 // standard A>M; can be parried but hits hard
-  "whirlwind":    [...ALL_MOV, "feint"],
+  "feint-strike": [...ALL_DEF, "feint"],                                // upgraded Feint: beats all DEF + Feint
 
-  // ─── Movement ───
+  // ─── T0-T1 Movement ───
   "move":         [...ALL_DEF, "power-hit"],
   "flanking":     ALL_DEF.filter(s => s !== "brace").concat(["power-hit"]),
   "dash":         [...ALL_DEF, "power-hit"],
@@ -73,54 +69,211 @@ const SKILL_BEATS: Record<string, string[]> = {
   "charge":       ALL_DEF.filter(s => s !== "brace" && s !== "sidestep").concat(["power-hit"]),
   "withdraw":     [...ALL_DEF, "power-hit"],
   "shadow-step":  ALL_DEF.filter(s => s !== "brace" && s !== "anticipate").concat(["power-hit"]),
-  "phantom-step": [...ALL_DEF, "power-hit"],
-  "overrun":      ALL_DEF.filter(s => s !== "brace").concat(["power-hit"]),
 
-  // ─── Defend ───
+  // ─── T0-T1 Defend ───
   "defend":       ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike"),
   "parry":        ALL_ATK.filter(s => s !== "power-hit" && s !== "feint" && s !== "feint-strike"),
-  "brace":        ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike").concat(["flanking", "charge", "shadow-step", "overrun"]),
+  "brace":        ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike").concat(["flanking", "charge", "shadow-step"]),
   "sidestep":     ALL_ATK.filter(s => s !== "quick-jab" && s !== "feint" && s !== "feint-strike").concat(["charge"]),
   "riposte":      ALL_ATK.filter(s => s !== "power-hit" && s !== "feint" && s !== "feint-strike"),
   "deflect":      ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike"),
   "anticipate":   ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike").concat(["shadow-step"]),
-  "mirror-guard": ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike"),
-  "fortress":     ALL_ATK.filter(s => s !== "feint" && s !== "feint-strike"),
+
+  // ─── T2 Cross-branch ───
+  "counterstrike":    ["melee-attack", "quick-jab"],
+  "bait-and-punish":  ["power-hit", "lunge"],
+  "step-through":     ["melee-attack", "power-hit"],
+  "blitz":            ["defend", "parry", "pivot"],
+  "hit-and-run":      ["melee-attack", "power-hit"],
+  "ambush":           ["defend", "parry"],
+  "intercept":        ["flanking", "melee-attack"],
+  "phaseout":         ["melee-attack", "power-hit", "quick-jab", "lunge", "combo-strike", "feint-strike"],
+  "shield-advance":   ["flanking", "melee-attack"],
+
+  // ─── T3 Attack branch ───
+  "killshot":         ["parry", "riposte", "counterstrike"],
+  "blinding-combo":   ["defend", "melee-attack"],
+  "smoke-and-daggers":["defend", "brace", "parry"],
+  "blur":             ["parry", "riposte", "counterstrike"],
+
+  // ─── T3 Defense branch ───
+  "bulwark":          ["melee-attack", "quick-jab", "lunge"],
+  "iron-curtain":     ["melee-attack", "power-hit", "quick-jab", "lunge", "combo-strike"],
+  "mirror-wall":      ["melee-attack", "power-hit", "flanking"],
+  "repel":            ["melee-attack", "power-hit", "quick-jab"],
+
+  // ─── T3 Movement branch ───
+  "ghost-walk":       ["melee-attack", "power-hit", "lunge"],
+  "juggernaut":       ["parry", "defend", "pivot"],
+  "warp-strike":      ["defend", "parry", "brace"],
+  "slip-away":        ["melee-attack", "power-hit"],
+
+  // ─── T3 AD Boundary ───
+  "vengeance":        ["power-hit", "lunge", "blitz"],
+  "iron-feint":       ["power-hit", "lunge"],
+  "flicker-stance":   ["melee-attack", "power-hit"],
+  "war-dance":        ["melee-attack", "power-hit", "defend"],
+
+  // ─── T3 AM Boundary ───
+  "storm-blade":      ["defend", "parry", "pivot"],
+  "hurricane":        ["defend", "parry"],
+  "death-from-shadows":["defend", "parry"],
+  "whiplash":         ["defend", "parry"],
+
+  // ─── T3 DM Boundary ───
+  "guardian-step":    ["melee-attack", "flanking"],
+  "vanishing-guard":  ["melee-attack", "power-hit", "lunge"],
+  "fortress-march":   ["melee-attack", "flanking"],
+  "displacement":     ["flanking", "melee-attack", "quick-jab"],
 };
 
 const SKILL_LOSES_TO: Record<string, string[]> = {
-  // ─── Attack ───
-  "melee-attack": [...ALL_DEF],
-  "power-hit":    [...ALL_MOV, ...ALL_DEF.filter(s => s !== "parry" && s !== "riposte"), "quick-jab"],
-  "quick-jab":    ALL_DEF.filter(s => s !== "sidestep"),
-  "feint":        ALL_ATK.filter(s => s !== "feint"),                   // loses to every other ATK skill
-  "lunge":        [...ALL_DEF],
-  "combo-strike": [...ALL_DEF],
-  "feint-strike": ["pivot"],                                            // only specific loss
-  "executioner":  [...ALL_DEF],                                          // standard D>A; can be parried/blocked
-  "whirlwind":    [...ALL_DEF],
+  // ─── T0-T1 Attack ───
+  "melee-attack": [
+    ...ALL_DEF,
+    // T2 cross-branch skills that beat melee-attack
+    "counterstrike", "step-through", "hit-and-run", "intercept", "phaseout", "shield-advance",
+    // T3 skills that beat melee-attack
+    "blinding-combo", "smoke-and-daggers", "bulwark", "iron-curtain", "mirror-wall", "repel",
+    "ghost-walk", "slip-away", "flicker-stance", "war-dance", "guardian-step", "vanishing-guard",
+    "fortress-march", "displacement",
+  ],
+  "power-hit":    [
+    ...ALL_MOV,
+    ...ALL_DEF.filter(s => s !== "parry" && s !== "riposte"),
+    "quick-jab",
+    // T2 cross-branch that beats power-hit
+    "counterstrike", "bait-and-punish", "step-through", "hit-and-run", "phaseout",
+    // T3 that beats power-hit
+    "bulwark", "iron-curtain", "mirror-wall", "repel", "ghost-walk", "slip-away",
+    "vengeance", "iron-feint", "flicker-stance", "war-dance", "vanishing-guard",
+    "guardian-step", "displacement",
+  ],
+  "quick-jab":    [
+    ALL_DEF.filter(s => s !== "sidestep"),
+    "counterstrike", "phaseout",
+    "bulwark", "iron-curtain", "repel", "displacement",
+  ].flat(),
+  "feint":        [
+    ALL_ATK.filter(s => s !== "feint"),
+  ].flat(),
+  "lunge":        [
+    ...ALL_DEF,
+    "bait-and-punish", "phaseout",
+    "bulwark", "iron-curtain", "ghost-walk", "slip-away", "vengeance", "iron-feint",
+    "vanishing-guard",
+  ],
+  "combo-strike": [
+    ...ALL_DEF,
+    "phaseout",
+    "iron-curtain",
+  ],
+  "feint-strike": ["pivot", "phaseout", "iron-curtain"],
 
-  // ─── Movement ───
-  "move":         [...STD_ATK_VS_MOV],
-  "flanking":     [...STD_ATK_VS_MOV, "brace", "pivot"],
-  "dash":         [...STD_ATK_VS_MOV],
-  "pivot":        [...STD_ATK_VS_MOV, "feint"],                         // Pivot specifically loses to Feint
-  "charge":       [...STD_ATK_VS_MOV, "brace", "sidestep"],
+  // ─── T0-T1 Movement ───
+  "move":         [...STD_ATK_VS_MOV, "bait-and-punish", "iron-feint"],
+  "flanking":     [
+    ...STD_ATK_VS_MOV, "brace", "pivot",
+    "intercept", "shield-advance",
+    "mirror-wall", "guardian-step", "fortress-march", "displacement",
+  ],
+  "dash":         [...STD_ATK_VS_MOV, "bait-and-punish"],
+  "pivot":        [
+    ...STD_ATK_VS_MOV, "feint",
+    "blitz", "storm-blade", "juggernaut",
+  ],
+  "charge":       [
+    ...STD_ATK_VS_MOV, "brace", "sidestep",
+    "shield-advance", "fortress-march",
+  ],
   "withdraw":     [...STD_ATK_VS_MOV],
   "shadow-step":  [...STD_ATK_VS_MOV, "brace", "anticipate"],
-  "phantom-step": [...STD_ATK_VS_MOV],
-  "overrun":      [...STD_ATK_VS_MOV, "brace"],
 
-  // ─── Defend ───
-  "defend":       [...ALL_MOV, "feint", "feint-strike"],
-  "parry":        [...ALL_MOV, "power-hit", "feint", "feint-strike"],
-  "brace":        ALL_MOV.filter(s => s !== "flanking" && s !== "charge" && s !== "shadow-step" && s !== "overrun").concat(["feint", "feint-strike"]),
-  "sidestep":     ALL_MOV.filter(s => s !== "charge").concat(["quick-jab", "feint", "feint-strike"]),
-  "riposte":      [...ALL_MOV, "power-hit", "feint", "feint-strike"],
+  // ─── T0-T1 Defend ───
+  "defend":       [
+    ...ALL_MOV, "feint", "feint-strike",
+    "blitz", "hit-and-run", "ambush",
+    "killshot", "blinding-combo", "smoke-and-daggers", "blur",
+    "juggernaut", "warp-strike",
+    "war-dance", "storm-blade", "hurricane", "death-from-shadows", "whiplash",
+  ],
+  "parry":        [
+    ...ALL_MOV, "power-hit", "feint", "feint-strike",
+    "blitz", "ambush",
+    "killshot", "blinding-combo", "blur",
+    "bulwark", "juggernaut", "warp-strike",
+    "storm-blade", "hurricane", "death-from-shadows", "whiplash",
+  ],
+  "brace":        [
+    ALL_MOV.filter(s => s !== "flanking" && s !== "charge" && s !== "shadow-step").concat(["feint", "feint-strike"]),
+    "smoke-and-daggers",
+    "warp-strike",
+    "mirror-wall",
+  ].flat(),
+  "sidestep":     [
+    ALL_MOV.filter(s => s !== "charge").concat(["quick-jab", "feint", "feint-strike"]),
+    "killshot", "blinding-combo", "blur",
+    "juggernaut", "storm-blade",
+  ].flat(),
+  "riposte":      [
+    ...ALL_MOV, "power-hit", "feint", "feint-strike",
+    "killshot", "blur",
+  ],
   "deflect":      [...ALL_MOV, "feint", "feint-strike"],
-  "anticipate":   ALL_MOV.filter(s => s !== "shadow-step").concat(["feint", "feint-strike"]),
-  "mirror-guard": [...ALL_MOV, "feint", "feint-strike"],
-  "fortress":     [...ALL_MOV, "feint", "feint-strike"],
+  "anticipate":   [
+    ALL_MOV.filter(s => s !== "shadow-step").concat(["feint", "feint-strike"]),
+    "step-through", "ambush",
+    "warp-strike",
+    "flicker-stance",
+    "phaseout", "vanishing-guard",
+  ].flat(),
+
+  // ─── T2 Cross-branch ───
+  "counterstrike":    ["power-hit", "feint", "flanking", "killshot", "blur"],
+  "bait-and-punish":  ["feint", "move", "dash", "flanking"],
+  "step-through":     ["brace", "anticipate"],
+  "blitz":            ["brace", "sidestep", "vengeance"],
+  "hit-and-run":      ["brace", "flanking"],
+  "ambush":           ["brace", "pivot", "anticipate"],
+  "intercept":        ["feint", "power-hit"],
+  "phaseout":         ["feint", "anticipate"],
+  "shield-advance":   ["feint", "charge"],
+
+  // ─── T3 Attack branch ───
+  "killshot":         ["sidestep", "phaseout"],
+  "blinding-combo":   ["parry", "sidestep"],
+  "smoke-and-daggers":["melee-attack", "power-hit", "move", "flanking"],
+  "blur":             ["brace", "sidestep"],
+
+  // ─── T3 Defense branch ───
+  "bulwark":          ["power-hit", "feint", "flanking"],
+  "iron-curtain":     ["feint", "feint-strike"],
+  "mirror-wall":      ["feint", "brace"],
+  "repel":            ["feint", "flanking"],
+
+  // ─── T3 Movement branch ───
+  "ghost-walk":       ["anticipate"],
+  "juggernaut":       ["brace", "sidestep"],
+  "warp-strike":      ["brace", "anticipate"],
+  "slip-away":        ["lunge", "blitz"],
+
+  // ─── T3 AD Boundary ───
+  "vengeance":        ["feint", "move", "flanking"],
+  "iron-feint":       ["feint", "move", "flanking", "dash"],
+  "flicker-stance":   ["brace", "anticipate"],
+  "war-dance":        ["feint-strike", "flanking"],
+
+  // ─── T3 AM Boundary ───
+  "storm-blade":      ["brace", "sidestep"],
+  "hurricane":        ["brace", "sidestep"],
+  "death-from-shadows":["brace", "pivot"],
+  "whiplash":         ["brace", "move", "flanking"],
+
+  // ─── T3 DM Boundary ───
+  "guardian-step":    ["feint", "power-hit"],
+  "vanishing-guard":  ["anticipate", "feint"],
+  "fortress-march":   ["feint", "charge"],
+  "displacement":     ["feint", "power-hit"],
 };
 
 // Passive boost skills — hidden in Play mode, their effect shows on base skill cards
