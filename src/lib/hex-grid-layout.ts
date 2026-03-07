@@ -1,8 +1,9 @@
 /**
- * Hex grid layout — manual axial coordinates for all 30 skills.
+ * Hex grid layout — axial coordinates for all 57 skills.
  *
- * Every prerequisite pair is adjacent in the hex grid (shares an edge).
  * Flat-top hexagons with axial coordinates (q, r).
+ * Adjacent prerequisite pairs share a hex edge (highlighted with shared-edge glow).
+ * Non-adjacent prerequisite pairs are connected with line connections.
  *
  * Pixel conversion (flat-top):
  *   x = R * 3/2 * q
@@ -20,43 +21,96 @@ export const HEX_R = 38;
 // ─── Axial Coordinates ───────────────────────────────────────────────────────
 
 export const SKILL_POSITIONS: Record<string, { q: number; r: number }> = {
-  // Base skills (Tier 0) — triangle around empty center
+  // ─── Tier 0: Base Skills ──────────────────────────────────────────────────
   "melee-attack": { q: 0, r: -1 },
   "move": { q: 1, r: 0 },
   "defend": { q: -1, r: 1 },
 
-  // Attack branch — spreads north/northwest
+  // ─── Boost Passives ───────────────────────────────────────────────────────
+  "sharpen": { q: 1, r: -1 },
+  "swift-feet": { q: 0, r: 1 },
+  "iron-skin": { q: -1, r: 0 },
+
+  // ─── T1: Attack Branch (north) ────────────────────────────────────────────
   "feint": { q: -1, r: -1 },
   "power-hit": { q: 0, r: -2 },
   "quick-jab": { q: 1, r: -2 },
-  "sharpen": { q: 1, r: -1 },
-  "feint-strike": { q: -1, r: -2 },
-  "lunge": { q: 0, r: -3 },
-  "combo-strike": { q: 1, r: -3 },
-  "whirlwind": { q: 1, r: -4 },
-  "executioner": { q: -1, r: -3 },
 
-  // Movement branch — spreads east/southeast
-  "swift-feet": { q: 0, r: 1 },
+  // ─── T1: Movement Branch (east/southeast) ─────────────────────────────────
   "flanking": { q: 2, r: -1 },
-  "dash": { q: 1, r: 1 },
   "pivot": { q: 2, r: 0 },
-  "shadow-step": { q: 3, r: -1 },
-  "withdraw": { q: 3, r: 0 },
-  "charge": { q: 2, r: 1 },
-  "phantom-step": { q: 4, r: -1 },
-  "overrun": { q: 3, r: 1 },
+  "dash": { q: 1, r: 1 },
 
-  // Defend branch — spreads west/southwest
-  "iron-skin": { q: -1, r: 0 },
+  // ─── T1: Defense Branch (west/southwest) ──────────────────────────────────
   "sidestep": { q: -2, r: 1 },
-  "brace": { q: -1, r: 2 },
   "parry": { q: -2, r: 2 },
-  "anticipate": { q: -3, r: 2 },
-  "deflect": { q: -2, r: 3 },
-  "riposte": { q: -3, r: 3 },
-  "mirror-guard": { q: -4, r: 3 }, // dual: riposte + anticipate
-  "fortress": { q: -3, r: 4 },
+  "brace": { q: -1, r: 2 },
+
+  // ─── T2: Attack Within-Branch ─────────────────────────────────────────────
+  "lunge": { q: 0, r: -3 },         // power-hit + quick-jab
+  "combo-strike": { q: 1, r: -3 },  // quick-jab + feint
+  "feint-strike": { q: -1, r: -2 }, // feint + power-hit
+
+  // ─── T2: Movement Within-Branch ───────────────────────────────────────────
+  "shadow-step": { q: 3, r: -1 },   // flanking + pivot
+  "withdraw": { q: 3, r: 0 },       // pivot + dash
+  "charge": { q: 2, r: 1 },         // dash + flanking
+
+  // ─── T2: Defense Within-Branch ────────────────────────────────────────────
+  "anticipate": { q: -3, r: 2 },    // sidestep + parry
+  "riposte": { q: -2, r: 3 },       // parry + brace
+  "deflect": { q: -1, r: 3 },       // brace + sidestep
+
+  // ─── T2: AD Cross-Branch (northwest gap) ──────────────────────────────────
+  "counterstrike": { q: -2, r: 0 },   // power-hit + parry
+  "bait-and-punish": { q: -2, r: -1 }, // feint + brace
+  "step-through": { q: -3, r: 0 },    // quick-jab + sidestep
+
+  // ─── T2: AM Cross-Branch (northeast gap) ──────────────────────────────────
+  "blitz": { q: 2, r: -2 },           // power-hit + dash
+  "hit-and-run": { q: 3, r: -2 },     // quick-jab + pivot
+  "ambush": { q: 2, r: -3 },          // feint + flanking
+
+  // ─── T2: DM Cross-Branch (south gap) ──────────────────────────────────────
+  "intercept": { q: 0, r: 2 },        // parry + flanking
+  "phaseout": { q: 0, r: 3 },         // sidestep + dash
+  "shield-advance": { q: 1, r: 2 },   // brace + pivot
+
+  // ─── T3: Deep Attack (extending north) ────────────────────────────────────
+  "killshot": { q: 1, r: -4 },           // lunge + power-hit
+  "blinding-combo": { q: 0, r: -4 },     // combo-strike + power-hit
+  "smoke-and-daggers": { q: -1, r: -3 }, // feint-strike + feint
+  "blur": { q: 2, r: -4 },               // combo-strike + quick-jab
+
+  // ─── T3: Deep Movement (extending east) ───────────────────────────────────
+  "ghost-walk": { q: 4, r: -2 },    // shadow-step + flanking
+  "warp-strike": { q: 4, r: -1 },   // shadow-step + pivot
+  "slip-away": { q: 4, r: 0 },      // withdraw + dash
+  "juggernaut": { q: 3, r: 1 },     // charge + dash
+
+  // ─── T3: Deep Defense (extending southwest) ───────────────────────────────
+  "bulwark": { q: -3, r: 3 },       // riposte + parry
+  "repel": { q: -2, r: 4 },         // deflect + parry
+  "iron-curtain": { q: -1, r: 4 },  // deflect + brace
+  "mirror-wall": { q: -4, r: 3 },   // anticipate + sidestep
+
+  // ─── T3: AD Boundary (northwest) ──────────────────────────────────────────
+  "vengeance": { q: -3, r: 1 },     // counterstrike + parry
+  "iron-feint": { q: -2, r: -2 },   // bait-and-punish + power-hit
+  "flicker-stance": { q: -4, r: 1 }, // step-through + sidestep
+  "war-dance": { q: -3, r: -1 },    // counterstrike + feint
+
+  // ─── T3: AM Boundary (northeast) ──────────────────────────────────────────
+  "storm-blade": { q: 3, r: -3 },   // blitz + power-hit
+  "hurricane": { q: 4, r: -3 },     // hit-and-run + quick-jab
+  "death-from-shadows": { q: 3, r: -4 }, // ambush + flanking
+  "whiplash": { q: 4, r: -4 },      // hit-and-run + feint
+
+  // ─── T3: DM Boundary (south) ──────────────────────────────────────────────
+  "guardian-step": { q: 1, r: 3 },   // intercept + flanking
+  "vanishing-guard": { q: 0, r: 4 }, // phaseout + dash
+  "fortress-march": { q: 1, r: 4 },  // shield-advance + brace
+  "displacement": { q: 2, r: 2 },    // intercept + pivot
 };
 
 // ─── Axial Directions ────────────────────────────────────────────────────────

@@ -431,13 +431,16 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
     return ids;
   }, [hoveredSkill, selectedSkillId]);
 
-  // ─── Prereq shared edges to highlight ──────────────────────────────
+  // ─── Prereq edges to highlight ──────────────────────────────────────
   const highlightEdges = useMemo(() => {
     const activeId = hoveredSkill?.id ?? selectedSkillId;
     if (!activeId) return [];
 
     const pairs = getPrereqEdges(activeId);
-    const edges: { x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
+    const edges: {
+      x1: number; y1: number; x2: number; y2: number;
+      color: string; type: "shared" | "line";
+    }[] = [];
 
     for (const [parentId, childId] of pairs) {
       if (!visibleIds.has(parentId) || !visibleIds.has(childId)) continue;
@@ -445,18 +448,27 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
       const childPos = SKILL_POSITIONS[childId];
       if (!parentPos || !childPos) continue;
 
-      const shared = getSharedEdge(parentPos, childPos);
-      if (!shared) continue;
-
       const childSkill = SKILL_MAP.get(childId);
       const color = childSkill ? BRANCH_COLORS[childSkill.branch] : "#ffffff";
-      edges.push({
-        x1: shared[0].x,
-        y1: shared[0].y,
-        x2: shared[1].x,
-        y2: shared[1].y,
-        color,
-      });
+
+      const shared = getSharedEdge(parentPos, childPos);
+      if (shared) {
+        // Adjacent: highlight the shared hex edge
+        edges.push({
+          x1: shared[0].x, y1: shared[0].y,
+          x2: shared[1].x, y2: shared[1].y,
+          color, type: "shared",
+        });
+      } else {
+        // Non-adjacent: draw a center-to-center connection line
+        const pp = axialToPixel(parentPos.q, parentPos.r);
+        const cp = axialToPixel(childPos.q, childPos.r);
+        edges.push({
+          x1: pp.x, y1: pp.y,
+          x2: cp.x, y2: cp.y,
+          color, type: "line",
+        });
+      }
     }
     return edges;
   }, [hoveredSkill, selectedSkillId, visibleIds]);
@@ -798,21 +810,36 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
             </text>
           </g>
 
-          {/* Highlighted shared edges (prereq chain) */}
+          {/* Highlighted prereq edges (shared edges + connection lines) */}
           <g style={{ pointerEvents: "none" }}>
-            {highlightEdges.map((edge, i) => (
-              <line
-                key={`he-${i}`}
-                x1={edge.x1}
-                y1={edge.y1}
-                x2={edge.x2}
-                y2={edge.y2}
-                stroke={edge.color}
-                strokeWidth={4}
-                strokeOpacity={0.9}
-                strokeLinecap="round"
-              />
-            ))}
+            {highlightEdges.map((edge, i) =>
+              edge.type === "shared" ? (
+                <line
+                  key={`he-${i}`}
+                  x1={edge.x1}
+                  y1={edge.y1}
+                  x2={edge.x2}
+                  y2={edge.y2}
+                  stroke={edge.color}
+                  strokeWidth={4}
+                  strokeOpacity={0.9}
+                  strokeLinecap="round"
+                />
+              ) : (
+                <line
+                  key={`he-${i}`}
+                  x1={edge.x1}
+                  y1={edge.y1}
+                  x2={edge.x2}
+                  y2={edge.y2}
+                  stroke={edge.color}
+                  strokeWidth={2}
+                  strokeOpacity={0.6}
+                  strokeLinecap="round"
+                  strokeDasharray="6 4"
+                />
+              )
+            )}
           </g>
 
           {/* All hex skill cells */}
