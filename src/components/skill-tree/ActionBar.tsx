@@ -90,9 +90,7 @@ export function ActionBar({ mode }: ActionBarProps) {
       resetPlayState();
       setExpanded(false);
     } else {
-      const chain = getPrereqChainIds(skill.id);
-      chain.push(skill.id);
-      setConfirmedSkills(chain);
+      setConfirmedSkills([skill.id]);
     }
   };
 
@@ -258,21 +256,3 @@ export function ActionBar({ mode }: ActionBarProps) {
   );
 }
 
-// Simple prereq chain walker (mirrors getPrereqChain in UnifiedSkillGraph)
-function getPrereqChainIds(skillId: string): string[] {
-  const chain: string[] = [];
-  const visited = new Set<string>();
-  function walk(id: string) {
-    const skill = SKILL_MAP.get(id);
-    if (!skill) return;
-    for (const pid of skill.prerequisites) {
-      if (!visited.has(pid)) {
-        visited.add(pid);
-        chain.push(pid);
-        walk(pid);
-      }
-    }
-  }
-  walk(skillId);
-  return chain;
-}

@@ -418,10 +418,10 @@ export function UnifiedSkillGraph({ mode }: UnifiedSkillGraphProps) {
   const handleConfirm = useCallback(() => {
     if (isConfirmed) {
       resetPlayState();
-    } else {
-      setConfirmedSkills([...highlightedIds]);
+    } else if (selectedSkillId) {
+      setConfirmedSkills([selectedSkillId]);
     }
-  }, [isConfirmed, highlightedIds, setConfirmedSkills, resetPlayState]);
+  }, [isConfirmed, selectedSkillId, setConfirmedSkills, resetPlayState]);
 
   // ─── Pan logic ────────────────────────────────────────────────────
   const applyPan = useCallback((clientX: number, clientY: number) => {
@@ -864,22 +864,7 @@ function DesktopSidePanel({
     if (isConfirmed) {
       resetPlayState();
     } else if (selectedSkillId) {
-      const chain: string[] = [];
-      const visited = new Set<string>();
-      function walk(id: string) {
-        const s = SKILL_MAP.get(id);
-        if (!s) return;
-        for (const pid of s.prerequisites) {
-          if (!visited.has(pid)) {
-            visited.add(pid);
-            chain.push(pid);
-            walk(pid);
-          }
-        }
-      }
-      walk(selectedSkillId);
-      chain.push(selectedSkillId);
-      setConfirmedSkills(chain);
+      setConfirmedSkills([selectedSkillId]);
     }
   }, [canConfirm, isConfirmed, selectedSkillId, setConfirmedSkills, resetPlayState]);
 
