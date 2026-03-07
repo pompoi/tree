@@ -1,7 +1,7 @@
 import type { Skill } from "@/types/skill";
 
 export const SKILLS: Skill[] = [
-  // ─── Tier 0: Core Skills ───────────────────────────────────────────────────
+  // ─── Tier 0: Base Skills (3) ──────────────────────────────────────────────
   {
     id: "melee-attack",
     name: "Melee Attack",
@@ -9,8 +9,7 @@ export const SKILLS: Skill[] = [
     branch: "attack",
     actionType: "melee",
     hexRange: 1,
-    description:
-      "Deal 1 damage to the target in the adjacent hex you face.",
+    description: "Deal 1 damage to the target in the adjacent hex you face.",
     statBonus: "damage",
     statBonusAmount: 1,
     cooldown: 0,
@@ -24,8 +23,7 @@ export const SKILLS: Skill[] = [
     branch: "movement",
     actionType: "move",
     hexRange: 1,
-    description:
-      "Change facing, then move 1 hex in your facing direction.",
+    description: "Change facing, then move 1 hex in your facing direction.",
     statBonus: "movement",
     statBonusAmount: 1,
     cooldown: 0,
@@ -48,7 +46,7 @@ export const SKILLS: Skill[] = [
     isBase: true,
   },
 
-  // ─── Tier 1: Boost Skills ─────────────────────────────────────────────────
+  // ─── Tier 1: Boost Passives (3) ───────────────────────────────────────────
   {
     id: "sharpen",
     name: "Sharpen",
@@ -56,13 +54,13 @@ export const SKILLS: Skill[] = [
     branch: "attack",
     actionType: "passive",
     hexRange: 0,
-    description:
-      "Your Melee Attack deals +1 damage (total 2).",
+    description: "Your Melee Attack deals +1 damage (total 2).",
     statBonus: "damage",
     statBonusAmount: 1,
     cooldown: 0,
     prerequisites: ["melee-attack"],
     isBase: false,
+    isBoostPassive: true,
   },
   {
     id: "swift-feet",
@@ -71,13 +69,13 @@ export const SKILLS: Skill[] = [
     branch: "movement",
     actionType: "passive",
     hexRange: 0,
-    description:
-      "Your Move covers +1 hex (total 2 hexes).",
+    description: "Your Move covers +1 hex (total 2 hexes).",
     statBonus: "movement",
     statBonusAmount: 1,
     cooldown: 0,
     prerequisites: ["move"],
     isBase: false,
+    isBoostPassive: true,
   },
   {
     id: "iron-skin",
@@ -93,9 +91,10 @@ export const SKILLS: Skill[] = [
     cooldown: 0,
     prerequisites: ["defend"],
     isBase: false,
+    isBoostPassive: true,
   },
 
-  // ─── Tier 1: Attack Branch ────────────────────────────────────────────────
+  // ─── Tier 1: Attack Branch (3) ────────────────────────────────────────────
   {
     id: "power-hit",
     name: "Power Hit",
@@ -148,7 +147,7 @@ export const SKILLS: Skill[] = [
       "High reward against defensive opponents, high risk against aggressive ones.",
   },
 
-  // ─── Tier 1: Defense Branch ───────────────────────────────────────────────
+  // ─── Tier 1: Defense Branch (3) ───────────────────────────────────────────
   {
     id: "parry",
     name: "Parry",
@@ -203,7 +202,7 @@ export const SKILLS: Skill[] = [
       "Dodges Melee Attack and Power Hit. Loses to Quick Jab (resolves before you move).",
   },
 
-  // ─── Tier 1: Movement Branch ──────────────────────────────────────────────
+  // ─── Tier 1: Movement Branch (3) ──────────────────────────────────────────
   {
     id: "flanking",
     name: "Flanking",
@@ -256,7 +255,7 @@ export const SKILLS: Skill[] = [
       "Counters Flanking (rotate to face flanker). Loses to Feint. Sets up Parry next round.",
   },
 
-  // ─── Tier 2: Attack Branch ────────────────────────────────────────────────
+  // ─── Tier 2: Within-Branch Attack (3) ─────────────────────────────────────
   {
     id: "lunge",
     name: "Lunge",
@@ -270,7 +269,7 @@ export const SKILLS: Skill[] = [
     statBonus: "damage",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["power-hit"],
+    prerequisites: ["power-hit", "quick-jab"],
     isBase: false,
     interactionNotes:
       "Extended range catches short Dash. Loses to Sidestep. Beaten by Parry (unlike Power Hit).",
@@ -287,10 +286,9 @@ export const SKILLS: Skill[] = [
     statBonus: "damage",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["quick-jab"],
+    prerequisites: ["quick-jab", "feint"],
     isBase: false,
-    interactionNotes:
-      "Rewards aggressive sequences. Loses to Parry and Sidestep.",
+    interactionNotes: "Rewards aggressive sequences. Loses to Parry and Sidestep.",
   },
   {
     id: "feint-strike",
@@ -304,13 +302,13 @@ export const SKILLS: Skill[] = [
     statBonus: "damage",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["feint"],
+    prerequisites: ["feint", "power-hit"],
     isBase: false,
     interactionNotes:
       "Upgraded Feint that punishes passive play with damage. Loses to Pivot.",
   },
 
-  // ─── Tier 2: Defense Branch ───────────────────────────────────────────────
+  // ─── Tier 2: Within-Branch Defense (3) ────────────────────────────────────
   {
     id: "riposte",
     name: "Riposte",
@@ -324,7 +322,7 @@ export const SKILLS: Skill[] = [
     statBonus: "reduction",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["parry"],
+    prerequisites: ["parry", "brace"],
     isBase: false,
     interactionNotes:
       "High-risk Parry. Still loses to Power Hit. Feint leaves you exposed.",
@@ -341,7 +339,7 @@ export const SKILLS: Skill[] = [
     statBonus: "reduction",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["brace"],
+    prerequisites: ["brace", "sidestep"],
     isBase: false,
     interactionNotes:
       "Turns defense into offense. Loses to Feint. Beats Quick Jab (absorb + redirect).",
@@ -358,13 +356,13 @@ export const SKILLS: Skill[] = [
     statBonus: "reduction",
     statBonusAmount: 2,
     cooldown: 1,
-    prerequisites: ["sidestep"],
+    prerequisites: ["sidestep", "parry"],
     isBase: false,
     interactionNotes:
       "Ultimate read. Massive payoff or massive punishment. Cannot use two rounds in a row.",
   },
 
-  // ─── Tier 2: Movement Branch ──────────────────────────────────────────────
+  // ─── Tier 2: Within-Branch Movement (3) ───────────────────────────────────
   {
     id: "charge",
     name: "Charge",
@@ -378,10 +376,9 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["dash"],
+    prerequisites: ["dash", "flanking"],
     isBase: false,
-    interactionNotes:
-      "Aggressive movement. Beaten by Brace and Sidestep.",
+    interactionNotes: "Aggressive movement. Beaten by Brace and Sidestep.",
   },
   {
     id: "withdraw",
@@ -395,7 +392,7 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["pivot"],
+    prerequisites: ["pivot", "dash"],
     isBase: false,
     interactionNotes:
       "Safe retreat. Loses to Lunge (extended reach). Sets up defense.",
@@ -412,120 +409,608 @@ export const SKILLS: Skill[] = [
     statBonus: "movement",
     statBonusAmount: 2,
     cooldown: 0,
-    prerequisites: ["flanking"],
+    prerequisites: ["flanking", "pivot"],
     isBase: false,
     interactionNotes:
       "Teleport-style repositioning. Countered by Brace and Anticipate (if MOV called).",
   },
 
-  // ─── Tier 3: Attack Branch ────────────────────────────────────────────────
+  // ─── Tier 2: AD Hybrids (3) ───────────────────────────────────────────────
   {
-    id: "executioner",
-    name: "Executioner",
-    tier: 3,
-    branch: "attack",
-    actionType: "melee",
-    hexRange: 1,
-    description:
-      "Deal 3 damage to adjacent facing hex. Only usable with Advantage (consumed).",
-    statBonus: "damage",
-    statBonusAmount: 3,
-    cooldown: 0,
-    prerequisites: ["feint-strike"],
-    isBase: false,
-    interactionNotes:
-      "Finisher. Requires setup through reads. Can be Parried. Misses if target moves.",
-  },
-  {
-    id: "whirlwind",
-    name: "Whirlwind",
-    tier: 3,
-    branch: "attack",
-    actionType: "melee",
-    hexRange: 1,
-    description:
-      "Deal 1 damage to ALL adjacent hexes (up to 6 targets).",
-    statBonus: "damage",
-    statBonusAmount: 3,
-    cooldown: 1,
-    prerequisites: ["combo-strike"],
-    isBase: false,
-    interactionNotes:
-      "Area attack ignores facing. Parry only works if in facing hex. Brace reduces it.",
-  },
-
-  // ─── Tier 3: Defense Branch ───────────────────────────────────────────────
-  {
-    id: "mirror-guard",
-    name: "Mirror Guard",
-    tier: 3,
+    id: "counterstrike",
+    name: "Counterstrike",
+    tier: 2,
     branch: "defend",
     secondaryBranch: "attack",
     actionType: "dodge",
     hexRange: 1,
     description:
-      "If attacked, copy the attacker's skill and resolve it against them simultaneously. No effect vs MOV.",
+      "Block then immediately power strike. If attacked from facing direction, block 1 damage and deal 1 damage back simultaneously.",
     statBonus: "reduction",
-    statBonusAmount: 3,
-    cooldown: 1,
-    prerequisites: ["anticipate"],
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["power-hit", "parry"],
     isBase: false,
     interactionNotes:
-      "Reflection. Useless if opponent doesn't attack. Feint destroys this.",
+      "Beats Melee Attack and Quick Jab. Loses to Power Hit, Feint, Flanking.",
   },
   {
-    id: "fortress",
-    name: "Fortress",
+    id: "bait-and-punish",
+    name: "Bait and Punish",
+    tier: 2,
+    branch: "defend",
+    secondaryBranch: "attack",
+    actionType: "dodge",
+    hexRange: 0,
+    description:
+      "Absorb their attack intentionally. Deal damage equal to what you took.",
+    statBonus: "reduction",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["feint", "brace"],
+    isBase: false,
+    interactionNotes:
+      "Beats Power Hit and Lunge. Loses to Feint and Move skills.",
+  },
+  {
+    id: "step-through",
+    name: "Step Through",
+    tier: 2,
+    branch: "attack",
+    secondaryBranch: "defend",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "Dodge sideways while jabbing. Evade and strike in one motion.",
+    statBonus: "damage",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["quick-jab", "sidestep"],
+    isBase: false,
+    interactionNotes:
+      "Beats Melee Attack and Power Hit. Loses to Brace and Anticipate.",
+  },
+
+  // ─── Tier 2: AM Hybrids (3) ───────────────────────────────────────────────
+  {
+    id: "blitz",
+    name: "Blitz",
+    tier: 2,
+    branch: "attack",
+    secondaryBranch: "movement",
+    actionType: "melee",
+    hexRange: 2,
+    description:
+      "Move 2 hexes in facing direction, deal 2 damage on arrival. Telegraphed but devastating.",
+    statBonus: "damage",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["power-hit", "dash"],
+    isBase: false,
+    interactionNotes:
+      "Beats Defend, Parry, Pivot. Loses to Brace and Sidestep.",
+  },
+  {
+    id: "hit-and-run",
+    name: "Hit and Run",
+    tier: 2,
+    branch: "attack",
+    secondaryBranch: "movement",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "Strike adjacent target, immediately rotate 180 degrees. Opponent can't retaliate from that facing.",
+    statBonus: "damage",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["quick-jab", "pivot"],
+    isBase: false,
+    interactionNotes:
+      "Beats Melee Attack and Power Hit. Loses to Brace and Flanking.",
+  },
+  {
+    id: "ambush",
+    name: "Ambush",
+    tier: 2,
+    branch: "movement",
+    secondaryBranch: "attack",
+    actionType: "move",
+    hexRange: 2,
+    description:
+      "Move as if repositioning, but end in attack position. Reads as MOV, resolves as ATK for 1 damage.",
+    statBonus: "movement",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["feint", "flanking"],
+    isBase: false,
+    interactionNotes:
+      "Beats Defend and Parry. Loses to Brace, Pivot, Anticipate.",
+  },
+
+  // ─── Tier 2: DM Hybrids (3) ───────────────────────────────────────────────
+  {
+    id: "intercept",
+    name: "Intercept",
+    tier: 2,
+    branch: "defend",
+    secondaryBranch: "movement",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Move to block a flank path. If opponent flanks into your new facing, deal 1 counter-damage.",
+    statBonus: "reduction",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["parry", "flanking"],
+    isBase: false,
+    interactionNotes:
+      "Beats Flanking and Melee Attack. Loses to Feint and Power Hit.",
+  },
+  {
+    id: "phaseout",
+    name: "Phaseout",
+    tier: 2,
+    branch: "movement",
+    secondaryBranch: "defend",
+    actionType: "move",
+    hexRange: 2,
+    description:
+      "Full evasion. Move 2 hexes perpendicular to facing. Untargetable by ATK this round.",
+    statBonus: "movement",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["sidestep", "dash"],
+    isBase: false,
+    interactionNotes: "Beats all melee ATK skills. Loses to Feint and Anticipate.",
+  },
+  {
+    id: "shield-advance",
+    name: "Shield Advance",
+    tier: 2,
+    branch: "defend",
+    secondaryBranch: "movement",
+    actionType: "dodge",
+    hexRange: 0,
+    description:
+      "Rotate to face any direction while reducing all damage by 1. Slow but impenetrable repositioning.",
+    statBonus: "reduction",
+    statBonusAmount: 2,
+    cooldown: 0,
+    prerequisites: ["brace", "pivot"],
+    isBase: false,
+    interactionNotes:
+      "Beats Flanking and Melee Attack. Loses to Feint and Charge.",
+  },
+
+  // ─── Tier 3: Deep Attack (4) ──────────────────────────────────────────────
+  {
+    id: "killshot",
+    name: "Killshot",
+    tier: 3,
+    branch: "attack",
+    actionType: "melee",
+    hexRange: 2,
+    description:
+      "Deal 3 damage to target up to 2 hexes away in facing direction. Breaks through Parry and Riposte.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["lunge", "power-hit"],
+    isBase: false,
+    interactionNotes:
+      "Beats Parry, Riposte, Counterstrike. Loses to Sidestep, Phaseout.",
+  },
+  {
+    id: "blinding-combo",
+    name: "Blinding Combo",
+    tier: 3,
+    branch: "attack",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "3-hit combo ending in power blow. Deal 3 damage to adjacent hex. Winner gains Advantage.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["combo-strike", "power-hit"],
+    isBase: false,
+    interactionNotes:
+      "Massive damage + Advantage. Loses to Parry and Sidestep.",
+  },
+  {
+    id: "smoke-and-daggers",
+    name: "Smoke and Daggers",
+    tier: 3,
+    branch: "attack",
+    actionType: "melee",
+    hexRange: 0,
+    description:
+      "Double-layer fake. If opponent chose DEF two rounds in a row, deal 4 damage.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["feint-strike", "feint"],
+    isBase: false,
+    interactionNotes:
+      "Extreme punishment for passive play. No effect vs ATK or MOV.",
+  },
+  {
+    id: "blur",
+    name: "Blur",
+    tier: 3,
+    branch: "attack",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "3-hit combo resolving in movement phase. Deal 2 damage. Cannot be Parried.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["combo-strike", "quick-jab"],
+    isBase: false,
+    interactionNotes:
+      "Speed combo bypasses counters. Loses to Brace and Sidestep. Beats Parry, Riposte.",
+  },
+
+  // ─── Tier 3: Deep Defense (4) ─────────────────────────────────────────────
+  {
+    id: "bulwark",
+    name: "Bulwark",
+    tier: 3,
+    branch: "defend",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Block all frontal attacks. Return 3 damage to attacker. Still loses to Power Hit.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["riposte", "parry"],
+    isBase: false,
+    interactionNotes:
+      "Ultimate counter. Beats Melee Attack, Quick Jab, Lunge. Loses to Power Hit, Feint, Flanking.",
+  },
+  {
+    id: "iron-curtain",
+    name: "Iron Curtain",
     tier: 3,
     branch: "defend",
     actionType: "dodge",
     hexRange: 0,
     description:
-      "Block ALL incoming damage from every direction this round. Immobile for 2 rounds afterward.",
+      "Omnidirectional block. Reduce all incoming damage to 0 this round. Immobile for 1 round afterward.",
     statBonus: "reduction",
     statBonusAmount: 3,
-    cooldown: 2,
-    prerequisites: ["deflect"],
+    cooldown: 1,
+    prerequisites: ["deflect", "brace"],
+    isBase: false,
+    interactionNotes: "Total defense. Beats all ATK. Loses to Feint.",
+  },
+  {
+    id: "mirror-wall",
+    name: "Mirror Wall",
+    tier: 3,
+    branch: "defend",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Predict opponent's branch. If correct, dodge behind them and deal 2 damage.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["anticipate", "sidestep"],
     isBase: false,
     interactionNotes:
-      "Total defense. Opponent freely repositions for 2 rounds. Best vs burst turns.",
+      "Ultimate read + reposition. Massive payoff or wasted turn.",
+  },
+  {
+    id: "repel",
+    name: "Repel",
+    tier: 3,
+    branch: "defend",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Redirect ALL incoming damage as 1 damage splash to each adjacent hex.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["deflect", "parry"],
+    isBase: false,
+    interactionNotes:
+      "Turns defense into area damage. Beats melee ATK. Loses to Feint.",
   },
 
-  // ─── Tier 3: Movement Branch ──────────────────────────────────────────────
+  // ─── Tier 3: Deep Movement (4) ────────────────────────────────────────────
   {
-    id: "phantom-step",
-    name: "Phantom Step",
+    id: "ghost-walk",
+    name: "Ghost Walk",
     tier: 3,
     branch: "movement",
     actionType: "move",
-    hexRange: 3,
+    hexRange: 5,
     description:
-      "Move to any hex within 3 hexes. Set facing freely. If started adjacent, opponent can't target you with ATK this round.",
+      "Move anywhere within 5 hexes. Untargetable for the entire round.",
     statBonus: "movement",
     statBonusAmount: 3,
     cooldown: 1,
-    prerequisites: ["shadow-step"],
+    prerequisites: ["shadow-step", "flanking"],
     isBase: false,
     interactionNotes:
-      "Ultimate mobility. No direct damage. Sets up Flanking or Charge next round.",
+      "Ultimate mobility. No damage dealt. Sets up next-round positioning.",
   },
   {
-    id: "overrun",
-    name: "Overrun",
+    id: "juggernaut",
+    name: "Juggernaut",
+    tier: 3,
+    branch: "movement",
+    secondaryBranch: "attack",
+    actionType: "move",
+    hexRange: 2,
+    description:
+      "Move through opponent's hex. Push them 2 hexes. Deal 2 damage.",
+    statBonus: "movement",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["charge", "dash"],
+    isBase: false,
+    interactionNotes:
+      "Displacement + damage. Beats Parry. Countered by Brace and Sidestep.",
+  },
+  {
+    id: "warp-strike",
+    name: "Warp Strike",
     tier: 3,
     branch: "movement",
     secondaryBranch: "attack",
     actionType: "move",
     hexRange: 1,
     description:
-      "Move through opponent's hex, push them 1 hex in your direction. Deal 1 damage. End on their hex.",
+      "Teleport adjacent to target. Deal 2 damage regardless of facing.",
     statBonus: "movement",
     statBonusAmount: 3,
     cooldown: 1,
-    prerequisites: ["charge"],
+    prerequisites: ["shadow-step", "pivot"],
     isBase: false,
     interactionNotes:
-      "Displacement attack. Countered by Brace (no push). Beats Parry (attack from pass-through).",
+      "Ignores facing. Beats Defend. Countered by Brace and Anticipate.",
+  },
+  {
+    id: "slip-away",
+    name: "Slip Away",
+    tier: 3,
+    branch: "movement",
+    actionType: "move",
+    hexRange: 4,
+    description:
+      "Move 4 hexes away from nearest opponent. +2 Defend next round. Opponent cannot follow.",
+    statBonus: "movement",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["withdraw", "dash"],
+    isBase: false,
+    interactionNotes:
+      "Ultimate escape. No damage. Defensive bonus. Loses to Lunge.",
+  },
+
+  // ─── Tier 3: AD Boundary (4) ──────────────────────────────────────────────
+  {
+    id: "vengeance",
+    name: "Vengeance",
+    tier: 3,
+    branch: "defend",
+    secondaryBranch: "attack",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "If blocked this round, deal 2x what was blocked back to the attacker.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["counterstrike", "parry"],
+    isBase: false,
+    interactionNotes:
+      "Extreme counter. Punishes big attacks. No effect vs Feint or MOV. Loses to Power Hit.",
+  },
+  {
+    id: "iron-feint",
+    name: "Iron Feint",
+    tier: 3,
+    branch: "attack",
+    secondaryBranch: "defend",
+    actionType: "melee",
+    hexRange: 0,
+    description:
+      "Absorb hit, return a Power Hit that breaks guard. A feint leaves you fully exposed.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["bait-and-punish", "power-hit"],
+    isBase: false,
+    interactionNotes:
+      "High risk/reward. Beats Power Hit, Lunge. Loses to Feint, MOV skills.",
+  },
+  {
+    id: "flicker-stance",
+    name: "Flicker Stance",
+    tier: 3,
+    branch: "attack",
+    secondaryBranch: "defend",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "Dodge and strike simultaneously. Deal 1 damage. Opponent loses Advantage regardless.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["step-through", "sidestep"],
+    isBase: false,
+    interactionNotes:
+      "Advantage denial + damage. Beats Melee Attack, Power Hit. Loses to Brace, Anticipate.",
+  },
+  {
+    id: "war-dance",
+    name: "War Dance",
+    tier: 3,
+    branch: "defend",
+    secondaryBranch: "attack",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Declare after reveal: block+punish OR feint. Opponent can never read which. Wrong choice fully backfires.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["counterstrike", "feint"],
+    isBase: false,
+    interactionNotes: "Ultimate mindgame. Unreadable. Wrong choice = fully exposed.",
+  },
+
+  // ─── Tier 3: AM Boundary (4) ──────────────────────────────────────────────
+  {
+    id: "storm-blade",
+    name: "Storm Blade",
+    tier: 3,
+    branch: "attack",
+    secondaryBranch: "movement",
+    actionType: "melee",
+    hexRange: 3,
+    description:
+      "Move 3 hexes in facing direction, deal 3 damage on arrival.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["blitz", "power-hit"],
+    isBase: false,
+    interactionNotes:
+      "Devastating charge. Loses to Brace, Sidestep. Beats Defend, Parry, Pivot.",
+  },
+  {
+    id: "hurricane",
+    name: "Hurricane",
+    tier: 3,
+    branch: "attack",
+    secondaryBranch: "movement",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "Strike, pivot, strike again. Deal 2 damage total. Second strike can miss if target moved.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["hit-and-run", "quick-jab"],
+    isBase: false,
+    interactionNotes: "Double strike. Beats Defend. Loses to Brace, Sidestep.",
+  },
+  {
+    id: "death-from-shadows",
+    name: "Death from Shadows",
+    tier: 3,
+    branch: "movement",
+    secondaryBranch: "attack",
+    actionType: "move",
+    hexRange: 2,
+    description:
+      "Reads as MOV, resolves as 2-damage flanking ATK from behind. Must end behind target.",
+    statBonus: "movement",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["ambush", "flanking"],
+    isBase: false,
+    interactionNotes:
+      "Stealth attack. Beats Defend, Parry. Loses to Brace, Pivot.",
+  },
+  {
+    id: "whiplash",
+    name: "Whiplash",
+    tier: 3,
+    branch: "attack",
+    secondaryBranch: "movement",
+    actionType: "melee",
+    hexRange: 1,
+    description:
+      "Strike then fake a second hit. If opponent chose DEF after first strike, gain Advantage next round.",
+    statBonus: "damage",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["hit-and-run", "feint"],
+    isBase: false,
+    interactionNotes:
+      "Punishes defensive reactions. Beats Defend, Parry. Loses to Brace, MOV.",
+  },
+
+  // ─── Tier 3: DM Boundary (4) ──────────────────────────────────────────────
+  {
+    id: "guardian-step",
+    name: "Guardian Step",
+    tier: 3,
+    branch: "defend",
+    secondaryBranch: "movement",
+    actionType: "dodge",
+    hexRange: 1,
+    description:
+      "Flank the attacker while blocking. Position and defend simultaneously.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["intercept", "flanking"],
+    isBase: false,
+    interactionNotes:
+      "Defensive repositioning. Beats Melee Attack, Flanking. Loses to Feint, Power Hit.",
+  },
+  {
+    id: "vanishing-guard",
+    name: "Vanishing Guard",
+    tier: 3,
+    branch: "movement",
+    secondaryBranch: "defend",
+    actionType: "move",
+    hexRange: 3,
+    description:
+      "Move 3 hexes. Untargetable this round. Gain +1 Defend on arrival.",
+    statBonus: "movement",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["phaseout", "dash"],
+    isBase: false,
+    interactionNotes:
+      "Evasive retreat with defensive bonus. Beats all ATK. Loses to Anticipate, Feint.",
+  },
+  {
+    id: "fortress-march",
+    name: "Fortress March",
+    tier: 3,
+    branch: "defend",
+    secondaryBranch: "movement",
+    actionType: "dodge",
+    hexRange: 2,
+    description:
+      "Move 2 hexes while maintaining omnidirectional damage reduction of 1. Very slow but impenetrable.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 1,
+    prerequisites: ["shield-advance", "brace"],
+    isBase: false,
+    interactionNotes:
+      "Mobile fortress. Beats Melee Attack, Flanking. Loses to Feint, Charge.",
+  },
+  {
+    id: "displacement",
+    name: "Displacement",
+    tier: 3,
+    branch: "defend",
+    secondaryBranch: "movement",
+    actionType: "dodge",
+    hexRange: 0,
+    description:
+      "Rotate to face any attacker mid-round. Counter from any direction. Commits facing afterward.",
+    statBonus: "reduction",
+    statBonusAmount: 3,
+    cooldown: 0,
+    prerequisites: ["intercept", "pivot"],
+    isBase: false,
+    interactionNotes:
+      "Omnidirectional counter. Beats Flanking, Melee Attack. Loses to Feint, Power Hit.",
   },
 ];
 

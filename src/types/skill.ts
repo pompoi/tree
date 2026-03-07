@@ -21,4 +21,6 @@ export interface Skill {
   tags?: string[];
   /** Interaction notes for skill matchups */
   interactionNotes?: string;
+  /** True if this is a passive boost skill that enhances a base skill */
+  isBoostPassive?: boolean;
 }
